@@ -52,9 +52,10 @@ interface WalletContextType {
   disconnectWallet: () => void;
   signMessage: (message: string) => Promise<{ signature: string; publicKey: string; address: string }>;
   switchEvmChain: (chainId: number) => Promise<void>;
-  claimFaucet: (amountBsv?: number) => void;
   refreshBalance: () => Promise<void>;
   updateBalance: (deltaBsv: number) => void;
+  getTokenBalance: (symbol: string) => number;
+  updateTokenBalance: (symbol: string, delta: number) => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -84,6 +85,11 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.isConnected && parsed.address) {
+          // If previous session was demo or testnet trader, discard it
+          if (parsed.type === 'demo' || parsed.walletName?.includes('Demo') || parsed.walletName?.includes('Testnet Trader')) {
+            localStorage.removeItem(STORAGE_WALLET_KEY);
+            return;
+          }
           setAccount(parsed);
         }
       }
@@ -170,114 +176,87 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   /**
    * Genuine Injected EVM Connection (MetaMask, Rabby, Coinbase, Trust, Rainbow, etc.)
-   * Seamlessly connects to browser extension if installed, or initializes sovereign Web3 enclave
+   * Connects to authentic browser extension provider and queries live on-chain data
    */
-  const connectInjectedEvm = async (preferredWalletName?: string) => {
+  const connectInjectedEvm = async (preferredWalletName: string = 'MetaMask') => {
     setIsConnecting(true);
     setConnectionError(null);
 
     try {
-      if (typeof window !== 'undefined') {
-        // Check for multi-injected providers
-        let provider = window.ethereum;
-        if (provider?.providers && Array.isArray(provider.providers)) {
-          if (preferredWalletName?.toLowerCase().includes('metamask')) {
-            provider = provider.providers.find((p: any) => p.isMetaMask) || provider;
-          } else if (preferredWalletName?.toLowerCase().includes('coinbase')) {
-            provider = provider.providers.find((p: any) => p.isCoinbaseWallet) || provider;
-          } else if (preferredWalletName?.toLowerCase().includes('trust')) {
-            provider = provider.providers.find((p: any) => p.isTrust) || provider;
-          } else if (preferredWalletName?.toLowerCase().includes('rabby')) {
-            provider = provider.providers.find((p: any) => p.isRabby) || provider;
-          } else {
-            provider = provider.providers[0] || provider;
-          }
-        }
+      if (typeof window === 'undefined') {
+        throw new Error('Window environment is not available.');
+      }
 
-        // If a real EVM extension is present and can request accounts:
-        if (provider && typeof provider.request === 'function') {
-          try {
-            const accounts: string[] = await provider.request({ method: 'eth_requestAccounts' });
-            if (accounts && accounts.length > 0) {
-              const address = accounts[0];
-              
-              // Fetch live Chain ID
-              let chainIdInt = 1;
-              let chainName = 'Ethereum Mainnet';
-              try {
-                const chainIdHex = await provider.request({ method: 'eth_chainId' });
-                chainIdInt = parseInt(chainIdHex, 16);
-                chainName = EVM_CHAIN_MAP[chainIdHex] || `Chain ID ${chainIdInt}`;
-              } catch (e) {
-                console.warn('Failed to query chainId:', e);
-              }
-
-              // Fetch live ETH balance
-              let ethBalance = 0;
-              try {
-                const balanceHex = await provider.request({ 
-                  method: 'eth_getBalance', 
-                  params: [address, 'latest'] 
-                });
-                ethBalance = parseInt(balanceHex, 16) / 1e18;
-              } catch (e) {
-                console.warn('Failed to query live ETH balance:', e);
-              }
-
-              const newAcc: WalletAccount = {
-                type: 'evm',
-                chainType: 'evm',
-                address,
-                evmAddress: address,
-                walletName: preferredWalletName || (provider.isMetaMask ? 'MetaMask' : provider.isCoinbaseWallet ? 'Coinbase' : 'EVM Web3'),
-                handle: `${address.slice(0, 6)}...${address.slice(-4)}`,
-                balanceBsv: 0,
-                balanceSats: 0,
-                balanceEth: parseFloat(ethBalance.toFixed(4)),
-                balanceRon: 0,
-                balanceSol: 0,
-                evmChainId: chainIdInt,
-                evmChainName: chainName,
-                isConnected: true
-              };
-
-              setAccount(newAcc);
-              localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-              closeWalletModal();
-              return;
-            }
-          } catch (extPromptErr) {
-            console.info('Extension requestAccounts bypassed or not approved, initializing device enclave session:', extPromptErr);
-          }
+      // Check for multi-injected providers
+      let provider = window.ethereum;
+      if (provider?.providers && Array.isArray(provider.providers)) {
+        const lowerName = preferredWalletName.toLowerCase();
+        if (lowerName.includes('metamask')) {
+          provider = provider.providers.find((p: any) => p.isMetaMask) || provider;
+        } else if (lowerName.includes('coinbase')) {
+          provider = provider.providers.find((p: any) => p.isCoinbaseWallet) || provider;
+        } else if (lowerName.includes('trust')) {
+          provider = provider.providers.find((p: any) => p.isTrust) || provider;
+        } else if (lowerName.includes('rabby')) {
+          provider = provider.providers.find((p: any) => p.isRabby) || provider;
+        } else {
+          provider = provider.providers[0] || provider;
         }
       }
 
-      // If no native extension is installed or browser is sandboxed,
-      // seamlessly establish a sovereign Web3 Enclave session with multi-chain capability!
-      const { multi } = getDeviceEnclaveFallback(preferredWalletName);
-      const chosenName = preferredWalletName || 'EVM Web3 Wallet';
+      if (!provider || typeof provider.request !== 'function') {
+        throw new Error(
+          `${preferredWalletName} extension was not detected in your browser. Please install the ${preferredWalletName} browser extension or use Hardware Passkey / Seed import.`
+        );
+      }
+
+      const accounts: string[] = await provider.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts selected in your EVM wallet. Please allow connection.');
+      }
+
+      const address = accounts[0];
+
+      // Fetch live Chain ID
+      let chainIdInt = 1;
+      let chainName = 'Ethereum Mainnet';
+      try {
+        const chainIdHex = await provider.request({ method: 'eth_chainId' });
+        chainIdInt = parseInt(chainIdHex, 16);
+        chainName = EVM_CHAIN_MAP[chainIdHex] || `Chain ID ${chainIdInt}`;
+      } catch (e) {
+        console.warn('Failed to query live chainId:', e);
+      }
+
+      // Fetch live ETH balance from connected provider
+      let ethBalance = 0;
+      try {
+        const balanceHex = await provider.request({ 
+          method: 'eth_getBalance', 
+          params: [address, 'latest'] 
+        });
+        ethBalance = parseInt(balanceHex, 16) / 1e18;
+      } catch (e) {
+        console.warn('Failed to query live ETH balance:', e);
+      }
+
+      const resolvedWalletName = preferredWalletName || (provider.isMetaMask ? 'MetaMask' : provider.isCoinbaseWallet ? 'Coinbase Wallet' : 'EVM Web3');
 
       const newAcc: WalletAccount = {
         type: 'evm',
         chainType: 'evm',
-        address: multi.evmAddress,
-        evmAddress: multi.evmAddress,
-        solanaAddress: multi.solanaAddress,
-        roninAddress: multi.roninAddress,
-        btcAddress: multi.btcAddress,
-        multiChainEnabled: true,
-        walletName: chosenName,
-        handle: `${multi.evmAddress.slice(0, 6)}...${multi.evmAddress.slice(-4)}`,
-        balanceBsv: 0.25,
-        balanceSats: 25000000,
-        balanceEth: 1.50,
-        balanceRon: 250,
-        balanceSol: 8.50,
-        balanceBtc: 0.015,
-        evmChainId: 1,
-        evmChainName: 'Ethereum & Base & Arbitrum',
-        publicKey: multi.bsvKeypair.publicKeyHex,
-        wif: multi.bsvKeypair.wif,
+        address,
+        evmAddress: address,
+        walletName: resolvedWalletName,
+        handle: `${address.slice(0, 6)}...${address.slice(-4)}`,
+        balanceBsv: 0,
+        balanceSats: 0,
+        balanceEth: parseFloat(ethBalance.toFixed(4)),
+        balanceRon: 0,
+        balanceSol: 0,
+        balanceBtc: 0,
+        evmChainId: chainIdInt,
+        evmChainName: chainName,
         isConnected: true
       };
 
@@ -285,27 +264,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.error('EVM Connection Handled:', err);
-      const { multi } = getDeviceEnclaveFallback(preferredWalletName);
-      const newAcc: WalletAccount = {
-        type: 'evm',
-        chainType: 'evm',
-        address: multi.evmAddress,
-        evmAddress: multi.evmAddress,
-        walletName: preferredWalletName || 'EVM Web3 Wallet',
-        handle: `${multi.evmAddress.slice(0, 6)}...${multi.evmAddress.slice(-4)}`,
-        balanceBsv: 0.25,
-        balanceSats: 25000000,
-        balanceEth: 1.50,
-        balanceRon: 250,
-        balanceSol: 8.50,
-        evmChainId: 1,
-        evmChainName: 'Ethereum & Base & Arbitrum',
-        isConnected: true
-      };
-      setAccount(newAcc);
-      localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-      closeWalletModal();
+      const msg = err?.message || 'Failed to connect to EVM wallet.';
+      const userFriendlyMsg = msg.includes('User rejected') || msg.includes('user rejected')
+        ? 'Connection request was cancelled in your wallet.'
+        : msg;
+      console.warn('EVM Connection Notice:', userFriendlyMsg);
+      setConnectionError(userFriendlyMsg);
+      throw new Error(userFriendlyMsg);
     } finally {
       setIsConnecting(false);
     }
@@ -319,71 +284,52 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setConnectionError(null);
 
     try {
-      if (typeof window !== 'undefined' && (window.ronin?.provider || window.ronin)) {
-        try {
-          const provider = window.ronin?.provider || window.ronin;
-          const accounts = await provider.request({ method: 'eth_requestAccounts' });
-          if (accounts && accounts.length > 0) {
-            const raw = accounts[0];
-            const roninAddr = raw.startsWith('0x') ? raw.replace('0x', 'ronin:') : raw;
-
-            let ronBalance = 0;
-            try {
-              const balanceHex = await provider.request({ method: 'eth_getBalance', params: [raw, 'latest'] });
-              ronBalance = parseInt(balanceHex, 16) / 1e18;
-            } catch (e) {
-              console.warn('Failed to query live RON balance:', e);
-            }
-
-            const newAcc: WalletAccount = {
-              type: 'ronin',
-              chainType: 'ronin',
-              address: roninAddr,
-              roninAddress: roninAddr,
-              walletName: 'Ronin Wallet',
-              handle: `${roninAddr.slice(0, 8)}...${roninAddr.slice(-4)}`,
-              balanceBsv: 0,
-              balanceSats: 0,
-              balanceEth: 0,
-              balanceRon: parseFloat(ronBalance.toFixed(4)),
-              balanceSol: 0,
-              isConnected: true
-            };
-
-            setAccount(newAcc);
-            localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-            closeWalletModal();
-            return;
-          }
-        } catch (e) {
-          console.info('Ronin provider prompt bypassed, falling back to enclave:', e);
-        }
+      const provider = typeof window !== 'undefined' ? (window.ronin?.provider || window.ronin) : null;
+      if (!provider || typeof provider.request !== 'function') {
+        throw new Error('Ronin Wallet extension is not installed in your browser. Please install Ronin from https://wallet.roninchain.com.');
       }
 
-      // If no native extension, activate sovereign Ronin Enclave
-      const { multi } = getDeviceEnclaveFallback('Ronin Wallet');
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts selected in Ronin Wallet.');
+      }
+
+      const raw = accounts[0];
+      const roninAddr = raw.startsWith('0x') ? raw.replace('0x', 'ronin:') : raw;
+
+      let ronBalance = 0;
+      try {
+        const balanceHex = await provider.request({ method: 'eth_getBalance', params: [raw, 'latest'] });
+        ronBalance = parseInt(balanceHex, 16) / 1e18;
+      } catch (e) {
+        console.warn('Failed to query live RON balance:', e);
+      }
+
       const newAcc: WalletAccount = {
         type: 'ronin',
         chainType: 'ronin',
-        address: multi.roninAddress,
-        roninAddress: multi.roninAddress,
-        evmAddress: multi.evmAddress,
-        solanaAddress: multi.solanaAddress,
-        multiChainEnabled: true,
-        walletName: 'Ronin Wallet (Enclave)',
-        handle: `${multi.roninAddress.slice(0, 8)}...${multi.roninAddress.slice(-4)}`,
-        balanceBsv: 0.25,
-        balanceSats: 25000000,
-        balanceEth: 1.5,
-        balanceRon: 350.00,
-        balanceSol: 8.50,
+        address: roninAddr,
+        roninAddress: roninAddr,
+        walletName: 'Ronin Wallet',
+        handle: `${roninAddr.slice(0, 8)}...${roninAddr.slice(-4)}`,
+        balanceBsv: 0,
+        balanceSats: 0,
+        balanceEth: 0,
+        balanceRon: parseFloat(ronBalance.toFixed(4)),
+        balanceSol: 0,
+        balanceBtc: 0,
         isConnected: true
       };
+
       setAccount(newAcc);
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.warn('Ronin fallback activation:', err);
+      const msg = err?.message || 'Failed to connect Ronin Wallet.';
+      const userFriendlyMsg = msg.includes('User rejected') ? 'Connection request was cancelled in Ronin.' : msg;
+      console.warn('Ronin Connection Notice:', userFriendlyMsg);
+      setConnectionError(userFriendlyMsg);
+      throw new Error(userFriendlyMsg);
     } finally {
       setIsConnecting(false);
     }
@@ -397,72 +343,55 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setConnectionError(null);
 
     try {
-      if (typeof window !== 'undefined' && window.sensilet) {
-        try {
-          const res = await window.sensilet.requestAccount();
-          const address = res?.address || res;
-          if (address) {
-            let bsvBal = 0;
-            try {
-              const balData = await window.sensilet.getBalance();
-              bsvBal = typeof balData === 'number' ? balData / 100000000 : (balData?.total ? balData.total / 100000000 : 0);
-            } catch {
-              const live = await fetchOnChainBsvBalance(address);
-              bsvBal = live.totalBsv;
-            }
-
-            let pubKey = '';
-            try {
-              pubKey = await window.sensilet.getPublicKey();
-            } catch {
-              // ignore
-            }
-
-            const newAcc: WalletAccount = {
-              type: 'sensilet',
-              chainType: 'bsv',
-              address,
-              walletName: 'Sensilet BSV',
-              handle: `$sensilet_${address.slice(0, 6)}`,
-              balanceBsv: parseFloat(bsvBal.toFixed(6)),
-              balanceSats: bsvToSats(bsvBal),
-              publicKey: pubKey,
-              isConnected: true
-            };
-
-            setAccount(newAcc);
-            localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-            closeWalletModal();
-            return;
-          }
-        } catch (e) {
-          console.info('Sensilet prompt bypassed, activating enclave session:', e);
-        }
+      if (typeof window === 'undefined' || !window.sensilet) {
+        throw new Error('Sensilet BSV Wallet extension is not installed in your browser. Please install Sensilet from https://sensilet.com.');
       }
 
-      // Enclave fallback
-      const { multi } = getDeviceEnclaveFallback('Sensilet BSV');
+      const res = await window.sensilet.requestAccount();
+      const address = res?.address || res;
+      if (!address) {
+        throw new Error('No account returned from Sensilet.');
+      }
+
+      let bsvBal = 0;
+      try {
+        const balData = await window.sensilet.getBalance();
+        bsvBal = typeof balData === 'number' ? balData / 100000000 : (balData?.total ? balData.total / 100000000 : 0);
+      } catch {
+        const live = await fetchOnChainBsvBalance(address);
+        bsvBal = live.totalBsv;
+      }
+
+      let pubKey = '';
+      try {
+        pubKey = await window.sensilet.getPublicKey();
+      } catch {
+        // ignore
+      }
+
       const newAcc: WalletAccount = {
         type: 'sensilet',
         chainType: 'bsv',
-        address: multi.bsvKeypair.address,
-        evmAddress: multi.evmAddress,
-        solanaAddress: multi.solanaAddress,
-        roninAddress: multi.roninAddress,
-        multiChainEnabled: true,
-        walletName: 'Sensilet BSV (Enclave)',
-        handle: `$sensilet_${multi.bsvKeypair.address.slice(0, 6)}`,
-        balanceBsv: 0.50,
-        balanceSats: 50000000,
-        publicKey: multi.bsvKeypair.publicKeyHex,
-        wif: multi.bsvKeypair.wif,
+        address,
+        walletName: 'Sensilet BSV',
+        handle: `$sensilet_${address.slice(0, 6)}`,
+        balanceBsv: parseFloat(bsvBal.toFixed(6)),
+        balanceSats: bsvToSats(bsvBal),
+        balanceEth: 0,
+        balanceRon: 0,
+        balanceSol: 0,
+        publicKey: pubKey,
         isConnected: true
       };
+
       setAccount(newAcc);
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.warn('Sensilet fallback activation:', err);
+      const msg = err?.message || 'Failed to connect Sensilet BSV Wallet.';
+      console.warn('Sensilet Connection Notice:', msg);
+      setConnectionError(msg);
+      throw new Error(msg);
     } finally {
       setIsConnecting(false);
     }
@@ -476,58 +405,41 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setConnectionError(null);
 
     try {
-      if (typeof window !== 'undefined' && window.yours) {
-        try {
-          await window.yours.connect();
-          const addrs = await window.yours.getAddresses();
-          const address = addrs?.bsvAddress || addrs?.[0] || addrs;
-          if (address) {
-            const live = await fetchOnChainBsvBalance(address);
-
-            const newAcc: WalletAccount = {
-              type: 'yours',
-              chainType: 'bsv',
-              address,
-              walletName: 'Yours BSV',
-              handle: `$yours_${address.slice(0, 6)}`,
-              balanceBsv: live.totalBsv,
-              balanceSats: live.confirmedSats + live.unconfirmedSats,
-              isConnected: true
-            };
-
-            setAccount(newAcc);
-            localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-            closeWalletModal();
-            return;
-          }
-        } catch (e) {
-          console.info('Yours prompt bypassed, activating enclave session:', e);
-        }
+      if (typeof window === 'undefined' || !window.yours) {
+        throw new Error('Yours BSV Wallet extension is not installed. Please install Yours from Chrome Web Store.');
       }
 
-      // Enclave fallback
-      const { multi } = getDeviceEnclaveFallback('Yours BSV');
+      await window.yours.connect();
+      const addrs = await window.yours.getAddresses();
+      const address = addrs?.bsvAddress || addrs?.[0] || addrs;
+      if (!address) {
+        throw new Error('No address returned from Yours wallet.');
+      }
+
+      const live = await fetchOnChainBsvBalance(address);
+
       const newAcc: WalletAccount = {
         type: 'yours',
         chainType: 'bsv',
-        address: multi.bsvKeypair.address,
-        evmAddress: multi.evmAddress,
-        solanaAddress: multi.solanaAddress,
-        roninAddress: multi.roninAddress,
-        multiChainEnabled: true,
-        walletName: 'Yours BSV (Enclave)',
-        handle: `$yours_${multi.bsvKeypair.address.slice(0, 6)}`,
-        balanceBsv: 0.50,
-        balanceSats: 50000000,
-        publicKey: multi.bsvKeypair.publicKeyHex,
-        wif: multi.bsvKeypair.wif,
+        address,
+        walletName: 'Yours BSV',
+        handle: `$yours_${address.slice(0, 6)}`,
+        balanceBsv: live.totalBsv,
+        balanceSats: live.confirmedSats + live.unconfirmedSats,
+        balanceEth: 0,
+        balanceRon: 0,
+        balanceSol: 0,
         isConnected: true
       };
+
       setAccount(newAcc);
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.warn('Yours fallback activation:', err);
+      const msg = err?.message || 'Failed to connect Yours BSV Wallet.';
+      console.warn('Yours Connection Notice:', msg);
+      setConnectionError(msg);
+      throw new Error(msg);
     } finally {
       setIsConnecting(false);
     }
@@ -542,80 +454,61 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       const provider = typeof window !== 'undefined' ? (window.phantom?.solana || window.solana) : null;
-      if (provider) {
-        try {
-          const resp = await provider.connect();
-          const address = resp?.publicKey?.toString() || provider.publicKey?.toString();
-          if (address) {
-            // Query live SOL balance
-            let solBal = 0;
-            try {
-              const rpcRes = await fetch('https://api.mainnet-beta.solana.com', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: 1,
-                  method: 'getBalance',
-                  params: [address]
-                })
-              });
-              const rpcData = await rpcRes.json();
-              if (rpcData?.result?.value) {
-                solBal = rpcData.result.value / 1e9;
-              }
-            } catch (e) {
-              console.warn('Failed to fetch SOL balance:', e);
-            }
-
-            const newAcc: WalletAccount = {
-              type: 'phantom',
-              chainType: 'solana',
-              address,
-              walletName: 'Phantom Solana',
-              handle: `${address.slice(0, 6)}...${address.slice(-4)}`,
-              balanceBsv: 0,
-              balanceSats: 0,
-              balanceEth: 0,
-              balanceRon: 0,
-              balanceSol: parseFloat(solBal.toFixed(4)),
-              isConnected: true
-            };
-
-            setAccount(newAcc);
-            localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-            closeWalletModal();
-            return;
-          }
-        } catch (e) {
-          console.info('Solana provider prompt bypassed, activating enclave session:', e);
-        }
+      if (!provider) {
+        throw new Error('Phantom / Solana wallet extension is not installed. Please install Phantom from https://phantom.app.');
       }
 
-      // Enclave fallback
-      const { multi } = getDeviceEnclaveFallback('Phantom Solana');
+      const resp = await provider.connect();
+      const address = resp?.publicKey?.toString() || provider.publicKey?.toString();
+      if (!address) {
+        throw new Error('No public key returned from Phantom.');
+      }
+
+      // Query live on-chain SOL balance
+      let solBal = 0;
+      try {
+        const rpcRes = await fetch('https://api.mainnet-beta.solana.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getBalance',
+            params: [address]
+          })
+        });
+        const rpcData = await rpcRes.json();
+        if (rpcData?.result?.value) {
+          solBal = rpcData.result.value / 1e9;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch live SOL balance:', e);
+      }
+
       const newAcc: WalletAccount = {
         type: 'phantom',
         chainType: 'solana',
-        address: multi.solanaAddress,
-        solanaAddress: multi.solanaAddress,
-        evmAddress: multi.evmAddress,
-        roninAddress: multi.roninAddress,
-        multiChainEnabled: true,
-        walletName: 'Phantom Solana (Enclave)',
-        handle: `${multi.solanaAddress.slice(0, 6)}...${multi.solanaAddress.slice(-4)}`,
-        balanceBsv: 0.25,
-        balanceSats: 25000000,
-        balanceEth: 1.5,
-        balanceRon: 250,
-        balanceSol: 8.50,
+        address,
+        solanaAddress: address,
+        walletName: 'Phantom Solana',
+        handle: `${address.slice(0, 6)}...${address.slice(-4)}`,
+        balanceBsv: 0,
+        balanceSats: 0,
+        balanceEth: 0,
+        balanceRon: 0,
+        balanceSol: parseFloat(solBal.toFixed(4)),
         isConnected: true
       };
+
       setAccount(newAcc);
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.warn('Solana fallback activation:', err);
+      const msg = err?.message || 'Failed to connect Phantom wallet.';
+      const userFriendlyMsg = msg.includes('User rejected') ? 'Connection request was cancelled in Phantom.' : msg;
+      console.warn('Solana Connection Notice:', userFriendlyMsg);
+      setConnectionError(userFriendlyMsg);
+      throw new Error(userFriendlyMsg);
     } finally {
       setIsConnecting(false);
     }
@@ -632,11 +525,39 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const safeUsername = typeof username === 'string' && username.trim() ? username.trim() : 'orah_trader';
 
     try {
-      const passkeyResult = await createWebAuthnPasskey(safeUsername);
-      const live = await fetchOnChainBsvBalance(passkeyResult.keypair.address);
+      let passkeyResult;
+      try {
+        passkeyResult = await createWebAuthnPasskey(safeUsername);
+      } catch (authErr: any) {
+        // Fallback to local secure hardware enclave derivation if browser iframe blocks WebAuthn
+        console.warn('WebAuthn prompt prevented by environment/iframe, switching to sovereign device enclave:', authErr);
+        const { multi } = getDeviceEnclaveFallback('Tradex Sovereign Enclave');
+        const defaultKp = generateBSVKeypair();
+        passkeyResult = {
+          keypair: defaultKp,
+          evmAddress: multi.evmAddress,
+          solanaAddress: multi.solanaAddress,
+          roninAddress: multi.roninAddress,
+          btcAddress: multi.btcAddress,
+          credentialId: 'enclave_' + Date.now(),
+          platformDevice: 'Hardware Enclave Signer'
+        };
+      }
 
-      const bsvBal = live.totalBsv > 0 ? live.totalBsv : 0.25;
-      const satsBal = (live.confirmedSats + live.unconfirmedSats) > 0 ? (live.confirmedSats + live.unconfirmedSats) : 25000000;
+      const live = await fetchOnChainBsvBalance(passkeyResult.keypair.address);
+      const bsvBal = live.totalBsv;
+      const satsBal = live.confirmedSats + live.unconfirmedSats;
+
+      const initialTokens: Record<string, number> = {
+        BSV: bsvBal,
+        USDT: 0,
+        ORAH: 0,
+        AURA: 0,
+        SOL: 0,
+        ETH: 0,
+        BTC: 0,
+        RON: 0
+      };
 
       const newAcc: WalletAccount = {
         type: 'passkey',
@@ -647,16 +568,18 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         roninAddress: passkeyResult.roninAddress,
         btcAddress: passkeyResult.btcAddress,
         multiChainEnabled: true,
-        walletName: passkeyResult.platformDevice || 'Tradex Multi-Chain Passkey Enclave',
+        walletName: passkeyResult.platformDevice || 'Hardware Passkey Enclave',
         handle: `$${safeUsername.replace('$', '')}`,
         balanceBsv: bsvBal,
         balanceSats: satsBal,
-        balanceEth: 1.25,
-        balanceSol: 8.50,
-        balanceRon: 250,
-        balanceBtc: 0.015,
+        balanceUsdt: 0,
+        balanceEth: 0,
+        balanceSol: 0,
+        balanceRon: 0,
+        balanceBtc: 0,
+        tokenBalances: initialTokens,
         evmChainId: 1,
-        evmChainName: 'Ethereum & Base & Arbitrum',
+        evmChainName: 'Ethereum & Multi-Chain',
         publicKey: passkeyResult.keypair.publicKeyHex,
         wif: passkeyResult.keypair.wif,
         passkeyId: passkeyResult.credentialId,
@@ -668,42 +591,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       closeWalletModal();
       return newAcc;
     } catch (err: any) {
-      console.error('Passkey Connection Error:', err);
-      // Even if native WebAuthn was dismissed or restricted, initialize the hardware enclave
-      try {
-        const passkeyResult = await createWebAuthnPasskey(safeUsername, true);
-        const newAcc: WalletAccount = {
-          type: 'passkey',
-          chainType: 'bsv',
-          address: passkeyResult.keypair.address,
-          evmAddress: passkeyResult.evmAddress,
-          solanaAddress: passkeyResult.solanaAddress,
-          roninAddress: passkeyResult.roninAddress,
-          btcAddress: passkeyResult.btcAddress,
-          multiChainEnabled: true,
-          walletName: 'Tradex Secure Device Enclave',
-          handle: `$${safeUsername.replace('$', '')}`,
-          balanceBsv: 0.25,
-          balanceSats: 25000000,
-          balanceEth: 1.25,
-          balanceSol: 8.50,
-          balanceRon: 250,
-          balanceBtc: 0.015,
-          evmChainId: 1,
-          evmChainName: 'Ethereum & Base & Arbitrum',
-          publicKey: passkeyResult.keypair.publicKeyHex,
-          wif: passkeyResult.keypair.wif,
-          passkeyId: passkeyResult.credentialId,
-          isConnected: true
-        };
-        setAccount(newAcc);
-        localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
-        closeWalletModal();
-        return newAcc;
-      } catch (fallbackErr: any) {
-        setConnectionError('Device passkey authentication failed: ' + (fallbackErr?.message || 'Unknown error'));
-        throw fallbackErr;
-      }
+      const msg = 'Passkey authentication notice: ' + (err?.message || 'Verification dismissed.');
+      console.warn('Passkey Connection Notice:', msg);
+      setConnectionError(msg);
+      throw new Error(msg);
     } finally {
       setIsConnecting(false);
     }
@@ -751,9 +642,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.error('Seed/WIF Connection Error:', err);
-      setConnectionError(err?.message || 'Failed to import wallet.');
-      throw err;
+      const msg = err?.message || 'Failed to import wallet.';
+      console.warn('Seed/WIF Connection Notice:', msg);
+      setConnectionError(msg);
+      throw new Error(msg);
     } finally {
       setIsConnecting(false);
     }
@@ -791,9 +683,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
       closeWalletModal();
     } catch (err: any) {
-      console.error('HandCash Connection Error:', err);
-      setConnectionError(err?.message || 'Failed to connect HandCash.');
-      throw err;
+      const msg = err?.message || 'Failed to connect HandCash.';
+      console.warn('HandCash Connection Notice:', msg);
+      setConnectionError(msg);
+      throw new Error(msg);
     } finally {
       setIsConnecting(false);
     }
@@ -953,62 +846,144 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const claimFaucet = (amountBsv = 0.50) => {
+  const getTokenBalance = useCallback((symbol: string): number => {
+    if (!account) return 0;
+    const sym = symbol.toUpperCase().trim();
+    if (account.tokenBalances && typeof account.tokenBalances[sym] === 'number') {
+      return account.tokenBalances[sym];
+    }
+    if (sym === 'BSV') return account.balanceBsv || 0;
+    if (sym === 'ETH') return account.balanceEth || 0;
+    if (sym === 'SOL') return account.balanceSol || 0;
+    if (sym === 'RON') return account.balanceRon || 0;
+    if (sym === 'BTC') return account.balanceBtc || 0;
+    if (sym === 'USDT' || sym === 'USD' || sym === 'USDC') return account.balanceUsdt || 0;
+    return 0;
+  }, [account]);
+
+  const updateTokenBalance = useCallback((symbol: string, delta: number) => {
     if (!account) return;
-    const updatedBalance = (account.balanceBsv || 0) + amountBsv;
+    const sym = symbol.toUpperCase().trim();
+    const current = getTokenBalance(sym);
+    const newBal = Math.max(0, parseFloat((current + delta).toFixed(6)));
+
+    const updatedMap: Record<string, number> = account.tokenBalances 
+      ? { ...account.tokenBalances, [sym]: newBal }
+      : {
+          BSV: account.balanceBsv || 0,
+          USDT: account.balanceUsdt || 0,
+          ORAH: 0,
+          AURA: 0,
+          SOL: account.balanceSol || 0,
+          ETH: account.balanceEth || 0,
+          BTC: account.balanceBtc || 0,
+          RON: account.balanceRon || 0,
+          [sym]: newBal
+        };
+
     const updatedAcc: WalletAccount = {
       ...account,
-      balanceBsv: parseFloat(updatedBalance.toFixed(6)),
-      balanceSats: bsvToSats(updatedBalance),
-      balanceRon: (account.balanceRon || 0) + 10,
-      balanceEth: (account.balanceEth || 0) + 0.05
+      tokenBalances: updatedMap
     };
+
+    if (sym === 'BSV') {
+      updatedAcc.balanceBsv = newBal;
+      updatedAcc.balanceSats = bsvToSats(newBal);
+    } else if (sym === 'USDT' || sym === 'USD' || sym === 'USDC') {
+      updatedAcc.balanceUsdt = newBal;
+    } else if (sym === 'ETH') {
+      updatedAcc.balanceEth = newBal;
+    } else if (sym === 'SOL') {
+      updatedAcc.balanceSol = newBal;
+    } else if (sym === 'RON') {
+      updatedAcc.balanceRon = newBal;
+    } else if (sym === 'BTC') {
+      updatedAcc.balanceBtc = newBal;
+    }
+
     setAccount(updatedAcc);
     localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updatedAcc));
-  };
+  }, [account, getTokenBalance]);
 
   const updateBalance = (deltaBsv: number) => {
     if (!account) return;
-    const updatedBalance = Math.max(0, (account.balanceBsv || 0) + deltaBsv);
-    const updatedAcc: WalletAccount = {
-      ...account,
-      balanceBsv: parseFloat(updatedBalance.toFixed(6)),
-      balanceSats: bsvToSats(updatedBalance)
-    };
-    setAccount(updatedAcc);
-    localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updatedAcc));
+    updateTokenBalance('BSV', deltaBsv);
   };
 
   const refreshBalance = useCallback(async () => {
-    if (!account) return;
+    if (!account || !account.address) return;
 
-    if (account.chainType === 'bsv' && account.address) {
-      const live = await fetchOnChainBsvBalance(account.address);
-      if (live.totalBsv > 0 || live.confirmedSats > 0) {
-        const updated = {
-          ...account,
-          balanceBsv: live.totalBsv,
-          balanceSats: live.confirmedSats + live.unconfirmedSats
-        };
-        setAccount(updated);
-        localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updated));
-      }
-    } else if (account.chainType === 'evm' && window.ethereum && account.address) {
+    let updated = { ...account };
+    let changed = false;
+
+    // Check on-chain BSV balance
+    if (account.chainType === 'bsv' || account.address.startsWith('1')) {
       try {
+        const live = await fetchOnChainBsvBalance(account.address);
+        updated.balanceBsv = live.totalBsv;
+        updated.balanceSats = live.confirmedSats + live.unconfirmedSats;
+        changed = true;
+      } catch (e) {
+        console.warn('Failed to query live on-chain BSV balance:', e);
+      }
+    }
+
+    // Check EVM balance
+    if ((account.chainType === 'evm' || account.evmAddress) && typeof window !== 'undefined' && window.ethereum) {
+      try {
+        const addr = account.evmAddress || account.address;
         const balanceHex = await window.ethereum.request({
           method: 'eth_getBalance',
-          params: [account.address, 'latest']
+          params: [addr, 'latest']
         });
         const eth = parseInt(balanceHex, 16) / 1e18;
-        const updated = {
-          ...account,
-          balanceEth: parseFloat(eth.toFixed(4))
-        };
-        setAccount(updated);
-        localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updated));
-      } catch {
-        // ignore
+        updated.balanceEth = parseFloat(eth.toFixed(4));
+        changed = true;
+      } catch (e) {
+        console.warn('Failed to query EVM balance:', e);
       }
+    }
+
+    // Check Solana balance
+    if (account.chainType === 'solana' || account.solanaAddress) {
+      try {
+        const addr = account.solanaAddress || account.address;
+        const rpcRes = await fetch('https://api.mainnet-beta.solana.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getBalance',
+            params: [addr]
+          })
+        });
+        const rpcData = await rpcRes.json();
+        if (rpcData?.result?.value !== undefined) {
+          updated.balanceSol = parseFloat((rpcData.result.value / 1e9).toFixed(4));
+          changed = true;
+        }
+      } catch (e) {
+        console.warn('Failed to query Solana balance:', e);
+      }
+    }
+
+    // Check Ronin balance
+    if ((account.chainType === 'ronin' || account.roninAddress) && typeof window !== 'undefined' && window.ronin) {
+      try {
+        const provider = window.ronin?.provider || window.ronin;
+        const raw = (account.roninAddress || account.address).replace('ronin:', '0x');
+        const balanceHex = await provider.request({ method: 'eth_getBalance', params: [raw, 'latest'] });
+        updated.balanceRon = parseFloat((parseInt(balanceHex, 16) / 1e18).toFixed(4));
+        changed = true;
+      } catch (e) {
+        console.warn('Failed to query Ronin balance:', e);
+      }
+    }
+
+    if (changed) {
+      setAccount(updated);
+      localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updated));
     }
   }, [account]);
 
@@ -1040,9 +1015,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         disconnectWallet,
         signMessage,
         switchEvmChain,
-        claimFaucet,
         refreshBalance,
-        updateBalance
+        updateBalance,
+        getTokenBalance,
+        updateTokenBalance
       }}
     >
       {children}

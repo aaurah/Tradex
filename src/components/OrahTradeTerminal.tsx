@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
+  AlertCircle,
   SlidersHorizontal,
   Lock,
   Globe,
@@ -61,7 +62,7 @@ interface OrahTradeTerminalProps {
 export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
   initialPairSymbol
 }) => {
-  const { account, isConnected, openWalletModal } = useWallet();
+  const { account, isConnected, openWalletModal, getTokenBalance, updateTokenBalance, refreshBalance } = useWallet();
 
   // Active pair from the 22M+ matrix
   const [selectedPair, setSelectedPair] = useState<TradePair>(() => {
@@ -85,6 +86,15 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
   const [modalQuoteFilter, setModalQuoteFilter] = useState('ALL');
   const [modalCategoryFilter, setModalCategoryFilter] = useState('all');
   const [activeBottomTab, setActiveBottomTab] = useState<'orderbook' | 'trades' | 'orders'>('orderbook');
+  const [orderSubTab, setOrderSubTab] = useState<'all' | 'open_limit' | 'stop_orders' | 'history'>('all');
+  const [marketTick, setMarketTick] = useState(0);
+
+  useEffect(() => {
+    const unsub = tradeMarketsService.subscribe(() => {
+      setMarketTick(t => t + 1);
+    });
+    return unsub;
+  }, []);
 
   // Favorites state persisted locally
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -106,18 +116,22 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     });
   };
 
-  // Active limit & market orders
+  // Active limit, market, and stop-loss orders
   interface ActiveOrder {
     id: string;
     pairSymbol: string;
     base: string;
     quote: string;
     side: 'buy' | 'sell';
-    type: 'limit' | 'market';
+    type: 'limit' | 'market' | 'stop_loss' | 'stop_limit';
     price: number;
+    triggerPrice?: number;
+    takeProfitPrice?: number;
+    stopLossPrice?: number;
     amount: number;
     filledAmount: number;
-    status: 'open' | 'filled' | 'cancelled';
+    totalCostQuote: number;
+    status: 'open' | 'trigger_pending' | 'filled' | 'cancelled';
     timestamp: string;
     network: string;
   }
@@ -132,10 +146,14 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
   });
 
   const [tradeSide, setTradeSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'limit' | 'market'>('limit');
+  const [orderType, setOrderType] = useState<'limit' | 'market' | 'stop_loss' | 'stop_limit'>('limit');
   const [priceInput, setPriceInput] = useState<string>(selectedPair.priceFormatted);
+  const [stopPriceInput, setStopPriceInput] = useState<string>('');
   const [amountInput, setAmountInput] = useState<string>('10');
-  const [orderNotification, setOrderNotification] = useState<string | null>(null);
+  const [attachTpSl, setAttachTpSl] = useState<boolean>(false);
+  const [takeProfitInput, setTakeProfitInput] = useState<string>('');
+  const [stopLossInput, setStopLossInput] = useState<string>('');
+  const [orderNotification, setOrderNotification] = useState<{ type: 'success' | 'warn' | 'info'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Live orderbook generator state
@@ -157,7 +175,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
       sortBy: 'volume',
       pageSize: 150
     }).pairs;
-  }, [modalSearchQuery, modalCategoryFilter, modalQuoteFilter, favorites]);
+  }, [modalSearchQuery, modalCategoryFilter, modalQuoteFilter, favorites, marketTick]);
 
   // Format price helper
   const formatPrice = (p: number) => {
@@ -167,6 +185,15 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     return p.toFixed(8);
   };
 
+  // Available balances for base and quote
+  const availableQuote = useMemo(() => {
+    return getTokenBalance ? getTokenBalance(selectedPair.quote) : 0;
+  }, [getTokenBalance, selectedPair.quote, account]);
+
+  const availableBase = useMemo(() => {
+    return getTokenBalance ? getTokenBalance(selectedPair.base) : 0;
+  }, [getTokenBalance, selectedPair.base, account]);
+
   // Initialize and tick live orderbook matching engine on pair change
   useEffect(() => {
     // Initial sync with LetsExchange API
@@ -174,7 +201,12 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
   }, []);
 
   useEffect(() => {
-    setPriceInput(selectedPair.price < 1 ? selectedPair.price.toFixed(6) : selectedPair.price.toFixed(2));
+    const formattedPrice = selectedPair.price < 1 ? selectedPair.price.toFixed(6) : selectedPair.price.toFixed(2);
+    setPriceInput(formattedPrice);
+    setStopPriceInput((selectedPair.price * (tradeSide === 'buy' ? 1.05 : 0.95)).toFixed(selectedPair.price < 1 ? 6 : 2));
+    setTakeProfitInput((selectedPair.price * (tradeSide === 'buy' ? 1.10 : 0.90)).toFixed(selectedPair.price < 1 ? 6 : 2));
+    setStopLossInput((selectedPair.price * (tradeSide === 'buy' ? 0.92 : 1.08)).toFixed(selectedPair.price < 1 ? 6 : 2));
+
     const baseP = selectedPair.price;
     const isMicro = baseP < 0.01;
     const isSmall = baseP < 5;
@@ -211,23 +243,122 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     ];
     setRecentTrades(trades);
 
+    // Order matching engine & live tick loop
     const interval = setInterval(() => {
-      setOrderbook(prev => prev.map(row => {
-        const jitter = (Math.random() - 0.5) * (baseAmountScale * 0.08);
-        const newBidAmt = Math.max(0.01, +(row.bidAmount + jitter).toFixed(2));
-        const newAskAmt = Math.max(0.01, +(row.askAmount - jitter).toFixed(2));
-        return {
-          ...row,
-          bidAmount: newBidAmt,
-          askAmount: newAskAmt,
-          bidDepthPct: Math.min(100, Math.max(5, row.bidDepthPct + Math.round((Math.random() - 0.5) * 4))),
-          askDepthPct: Math.min(100, Math.max(5, row.askDepthPct - Math.round((Math.random() - 0.5) * 4)))
-        };
-      }));
-    }, 1800);
+      setOrderbook(prev => {
+        if (!prev.length) return prev;
+        return prev.map(row => {
+          const jitter = (Math.random() - 0.5) * (baseAmountScale * 0.08);
+          const newBidAmt = Math.max(0.01, +(row.bidAmount + jitter).toFixed(2));
+          const newAskAmt = Math.max(0.01, +(row.askAmount - jitter).toFixed(2));
+          return {
+            ...row,
+            bidAmount: newBidAmt,
+            askAmount: newAskAmt,
+            bidDepthPct: Math.min(100, Math.max(5, row.bidDepthPct + Math.round((Math.random() - 0.5) * 4))),
+            askDepthPct: Math.min(100, Math.max(5, row.askDepthPct - Math.round((Math.random() - 0.5) * 4)))
+          };
+        });
+      });
+
+      // Micro price fluctuation for matching engine simulation
+      const tickDrift = (Math.random() - 0.5) * (baseP * 0.003);
+      const currentTickPrice = parseFloat((baseP + tickDrift).toFixed(precision));
+
+      // Check open orders for Limit and Stop triggers!
+      setOpenOrders(prevOrders => {
+        let changed = false;
+        const next = prevOrders.map(order => {
+          // If order is already settled, leave it
+          if (order.status !== 'open' && order.status !== 'trigger_pending') {
+            return order;
+          }
+
+          // 1. Check STOP LOSS / STOP LIMIT triggers
+          if (order.status === 'trigger_pending' && order.triggerPrice) {
+            const isTriggered = order.side === 'sell'
+              ? currentTickPrice <= order.triggerPrice
+              : currentTickPrice >= order.triggerPrice;
+
+            if (isTriggered) {
+              changed = true;
+              if (order.type === 'stop_loss') {
+                // Stop Market Order triggers immediate fill!
+                if (updateTokenBalance) {
+                  if (order.side === 'buy') {
+                    updateTokenBalance(order.base, order.amount);
+                  } else {
+                    updateTokenBalance(order.quote, order.amount * currentTickPrice);
+                  }
+                }
+                setOrderNotification({
+                  type: 'success',
+                  text: `🎯 Stop Trigger Hit: ${order.side.toUpperCase()} ${order.amount} ${order.base} filled @ $${formatPrice(currentTickPrice)}!`
+                });
+                confetti({ particleCount: 50, spread: 50, origin: { y: 0.6 } });
+                return {
+                  ...order,
+                  price: currentTickPrice,
+                  filledAmount: order.amount,
+                  status: 'filled' as const
+                };
+              } else {
+                // Stop Limit activates into open limit order!
+                setOrderNotification({
+                  type: 'info',
+                  text: `⚡ Stop Limit Activated: Limit order placed for ${order.amount} ${order.base} @ $${formatPrice(order.price)}.`
+                });
+                return {
+                  ...order,
+                  status: 'open' as const
+                };
+              }
+            }
+          }
+
+          // 2. Check OPEN LIMIT orders for matching
+          if (order.status === 'open' && (order.type === 'limit' || order.type === 'stop_limit')) {
+            const isMatch = order.side === 'buy'
+              ? currentTickPrice <= order.price
+              : currentTickPrice >= order.price;
+
+            if (isMatch) {
+              changed = true;
+              if (updateTokenBalance) {
+                if (order.side === 'buy') {
+                  updateTokenBalance(order.base, order.amount);
+                } else {
+                  updateTokenBalance(order.quote, order.amount * order.price);
+                }
+              }
+              setOrderNotification({
+                type: 'success',
+                text: `🎉 Limit Order Filled: ${order.side.toUpperCase()} ${order.amount} ${order.base} @ $${formatPrice(order.price)}!`
+              });
+              confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+              return {
+                ...order,
+                filledAmount: order.amount,
+                status: 'filled' as const
+              };
+            }
+          }
+
+          return order;
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem('tradex_user_open_orders', JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      });
+
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [selectedPair]);
+  }, [selectedPair, tradeSide, updateTokenBalance]);
 
   const handleSelectPair = (pair: TradePair) => {
     setSelectedPair(pair);
@@ -235,6 +366,30 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     setViewMode('terminal');
   };
 
+  // Quick percent click for exact balance calculation
+  const handlePercentClick = (pct: number) => {
+    const px = parseFloat(priceInput) || selectedPair.price || 1;
+    if (tradeSide === 'buy') {
+      const avail = availableQuote;
+      if (avail <= 0) {
+        setAmountInput('10');
+        return;
+      }
+      const quoteToSpend = (avail * pct) / 100;
+      const baseAmt = quoteToSpend / px;
+      setAmountInput(baseAmt >= 1 ? baseAmt.toFixed(2) : baseAmt.toFixed(4));
+    } else {
+      const avail = availableBase;
+      if (avail <= 0) {
+        setAmountInput('10');
+        return;
+      }
+      const baseToSell = (avail * pct) / 100;
+      setAmountInput(baseToSell >= 1 ? baseToSell.toFixed(2) : baseToSell.toFixed(4));
+    }
+  };
+
+  // Main Trade Execution Handler
   const handleExecuteTrade = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
@@ -244,13 +399,47 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
 
     const amt = parseFloat(amountInput) || 0;
     const px = parseFloat(priceInput) || selectedPair.price;
-    if (amt <= 0 || px <= 0) return;
+    const triggerPx = parseFloat(stopPriceInput) || 0;
+
+    if (amt <= 0) {
+      setOrderNotification({ type: 'warn', text: 'Please specify a valid trade amount.' });
+      return;
+    }
+
+    if ((orderType === 'stop_loss' || orderType === 'stop_limit') && triggerPx <= 0) {
+      setOrderNotification({ type: 'warn', text: 'Please enter a valid trigger stop price.' });
+      return;
+    }
+
+    const totalQuoteCost = +(amt * px).toFixed(4);
+
+    // Balance check
+    if (tradeSide === 'buy') {
+      if (availableQuote < totalQuoteCost) {
+        setOrderNotification({
+          type: 'warn',
+          text: `Insufficient ${selectedPair.quote} balance! Available: ${availableQuote.toFixed(2)} ${selectedPair.quote}, needed: ${totalQuoteCost.toFixed(2)} ${selectedPair.quote}. Deposit funds or sync wallet balance.`
+        });
+        return;
+      }
+    } else {
+      if (availableBase < amt) {
+        setOrderNotification({
+          type: 'warn',
+          text: `Insufficient ${selectedPair.base} balance! Available: ${availableBase.toFixed(2)} ${selectedPair.base}, needed: ${amt.toFixed(2)} ${selectedPair.base}. Deposit funds or sync wallet balance.`
+        });
+        return;
+      }
+    }
 
     setIsSubmitting(true);
 
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const isInstantMarket = orderType === 'market';
+    const isStopOrder = orderType === 'stop_loss' || orderType === 'stop_limit';
 
     const newOrder: ActiveOrder = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -260,12 +449,36 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
       side: tradeSide,
       type: orderType,
       price: px,
+      triggerPrice: isStopOrder ? triggerPx : undefined,
+      takeProfitPrice: attachTpSl && parseFloat(takeProfitInput) ? parseFloat(takeProfitInput) : undefined,
+      stopLossPrice: attachTpSl && parseFloat(stopLossInput) ? parseFloat(stopLossInput) : undefined,
       amount: amt,
-      filledAmount: orderType === 'market' ? amt : 0,
-      status: orderType === 'market' ? 'filled' : 'open',
+      filledAmount: isInstantMarket ? amt : 0,
+      totalCostQuote: totalQuoteCost,
+      status: isInstantMarket ? 'filled' : isStopOrder ? 'trigger_pending' : 'open',
       timestamp: timeStr,
       network: selectedPair.network
     };
+
+    // Deduct and credit balances
+    if (updateTokenBalance) {
+      if (isInstantMarket) {
+        if (tradeSide === 'buy') {
+          updateTokenBalance(selectedPair.quote, -totalQuoteCost);
+          updateTokenBalance(selectedPair.base, +amt);
+        } else {
+          updateTokenBalance(selectedPair.base, -amt);
+          updateTokenBalance(selectedPair.quote, +totalQuoteCost);
+        }
+      } else {
+        // Limit or Stop orders reserve the asset being spent
+        if (tradeSide === 'buy') {
+          updateTokenBalance(selectedPair.quote, -totalQuoteCost);
+        } else {
+          updateTokenBalance(selectedPair.base, -amt);
+        }
+      }
+    }
 
     // Update open orders state & persistence
     const updatedOrders = [newOrder, ...openOrders];
@@ -274,8 +487,8 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
       localStorage.setItem('tradex_user_open_orders', JSON.stringify(updatedOrders));
     } catch {}
 
-    // If market order, instantly add to recent trades and execute fill
-    if (orderType === 'market') {
+    // If market order, instantly add to recent trades tape
+    if (isInstantMarket) {
       const newTrade: MarketTrade = {
         id: newOrder.id,
         time: timeStr,
@@ -287,32 +500,80 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     }
 
     confetti({
-      particleCount: 65,
-      spread: 60,
+      particleCount: 75,
+      spread: 65,
       origin: { y: 0.7 }
     });
 
-    setOrderNotification(
-      orderType === 'market'
-        ? `Instant Fill: ${tradeSide.toUpperCase()} ${amt} ${selectedPair.base} @ $${formatPrice(px)} on ${selectedPair.network}`
-        : `Limit Order Placed: ${tradeSide.toUpperCase()} ${amt} ${selectedPair.base} @ $${formatPrice(px)}`
-    );
+    let successMsg = '';
+    if (orderType === 'market') {
+      successMsg = `Instant Fill: ${tradeSide.toUpperCase()} ${amt} ${selectedPair.base} @ $${formatPrice(px)} on ${selectedPair.network}`;
+    } else if (orderType === 'limit') {
+      successMsg = `Limit Order Placed: ${tradeSide.toUpperCase()} ${amt} ${selectedPair.base} @ $${formatPrice(px)}`;
+    } else if (orderType === 'stop_loss') {
+      successMsg = `Stop Loss Armed: Trigger @ $${formatPrice(triggerPx)} → Market ${tradeSide.toUpperCase()} ${amt} ${selectedPair.base}`;
+    } else {
+      successMsg = `Stop Limit Armed: Trigger @ $${formatPrice(triggerPx)} → Limit Order @ $${formatPrice(px)}`;
+    }
 
+    setOrderNotification({ type: 'success', text: successMsg });
     setIsSubmitting(false);
 
     setTimeout(() => {
       setOrderNotification(null);
-    }, 4500);
+    }, 5500);
   };
 
+  // Cancel order with balance refund
   const handleCancelOrder = (orderId: string) => {
-    const updated = openOrders.filter(o => o.id !== orderId);
+    const targetOrder = openOrders.find(o => o.id === orderId);
+    if (!targetOrder) return;
+
+    // Refund reserved balance if it was open or trigger_pending
+    if (targetOrder.status === 'open' || targetOrder.status === 'trigger_pending') {
+      if (updateTokenBalance) {
+        if (targetOrder.side === 'buy') {
+          updateTokenBalance(targetOrder.quote, targetOrder.totalCostQuote);
+        } else {
+          updateTokenBalance(targetOrder.base, targetOrder.amount);
+        }
+      }
+    }
+
+    const updated = openOrders.map(o => o.id === orderId ? { ...o, status: 'cancelled' as const } : o);
     setOpenOrders(updated);
     try {
       localStorage.setItem('tradex_user_open_orders', JSON.stringify(updated));
     } catch {}
-    setOrderNotification('Order successfully cancelled.');
-    setTimeout(() => setOrderNotification(null), 3000);
+
+    setOrderNotification({ type: 'info', text: `Order ${orderId.slice(0, 8)} cancelled. Reserved funds returned to wallet.` });
+    setTimeout(() => setOrderNotification(null), 3500);
+  };
+
+  // Cancel all active orders
+  const handleCancelAllOrders = () => {
+    let refundCount = 0;
+    openOrders.forEach(o => {
+      if (o.status === 'open' || o.status === 'trigger_pending') {
+        refundCount++;
+        if (updateTokenBalance) {
+          if (o.side === 'buy') {
+            updateTokenBalance(o.quote, o.totalCostQuote);
+          } else {
+            updateTokenBalance(o.base, o.amount);
+          }
+        }
+      }
+    });
+
+    const updated = openOrders.map(o => (o.status === 'open' || o.status === 'trigger_pending') ? { ...o, status: 'cancelled' as const } : o);
+    setOpenOrders(updated);
+    try {
+      localStorage.setItem('tradex_user_open_orders', JSON.stringify(updated));
+    } catch {}
+
+    setOrderNotification({ type: 'info', text: `Cancelled ${refundCount} orders. All reserved funds refunded.` });
+    setTimeout(() => setOrderNotification(null), 3500);
   };
 
   const isFavorite = favorites.includes(selectedPair.symbol);
@@ -459,7 +720,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
               <Search className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search across 22,357,399 multi-chain markets (BSV, SOL, ETH, BTC, RON...)"
+                placeholder="Search across 22,357,399 multi-chain markets (A8, LMWR, BSV, SOL, RON, ETH...)"
                 value={modalSearchQuery}
                 onChange={(e) => setModalSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2.5 rounded-lg bg-[#141414] border border-[#2A2A2A] text-white placeholder-[#555] text-xs font-mono focus:outline-none focus:border-[#00FF41]"
@@ -473,6 +734,27 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                   ✕
                 </button>
               )}
+            </div>
+
+            {/* Quick Trending Market Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 text-[11px] font-mono shrink-0">
+              <span className="text-[10px] text-[#666] uppercase font-bold shrink-0">Hot:</span>
+              {['A8/USDT', 'LMWR/USDT', 'ORAH/USDT', 'AURA/USDT', 'BSV/USDT', 'RON/USDT', 'SOL/USDT', 'ETH/USDT', 'A8/RON', 'LMWR/ETH'].map(sym => (
+                <button
+                  key={sym}
+                  onClick={() => {
+                    const p = tradeMarketsService.getPairBySymbol(sym);
+                    if (p) handleSelectPair(p);
+                  }}
+                  className={`px-2 py-0.5 rounded-md border text-[11px] font-bold whitespace-nowrap transition-all ${
+                    selectedPair.symbol === sym
+                      ? 'bg-[#00FF41]/20 text-[#00FF41] border-[#00FF41]/50'
+                      : 'bg-[#151515] hover:bg-[#222] text-[#AAA] hover:text-white border-[#242424]'
+                  }`}
+                >
+                  {sym}
+                </button>
+              ))}
             </div>
 
             {/* Filter Section Box: Quote and Category Rows */}
@@ -529,10 +811,30 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
             {/* Pair Results List */}
             <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-[#151515] pr-1 space-y-0.5">
               {modalFilteredPairs.length === 0 ? (
-                <div className="py-12 text-center text-[#666] space-y-1">
-                  <div className="text-2xl">🔍</div>
-                  <div className="text-white font-bold text-xs">No pairs matching "{modalSearchQuery}"</div>
-                  <div className="text-[10px] text-[#555]">Try searching for BSV, ORAH, AURA, SOL, BTC, ETH, or RON.</div>
+                <div className="py-10 text-center text-[#666] space-y-3">
+                  <div className="text-3xl">🔍</div>
+                  <div className="text-white font-bold text-sm">No standard pairs matching "{modalSearchQuery}"</div>
+                  <div className="text-xs text-[#666] max-w-sm mx-auto">
+                    Create and open a custom 22M+ market for this coin immediately against USDT, USDC, BSV, ETH, SOL, or RON.
+                  </div>
+                  {modalSearchQuery && (
+                    <button
+                      onClick={() => {
+                        const targetQuote = modalQuoteFilter !== 'ALL' ? modalQuoteFilter : 'USDT';
+                        const pair = tradeMarketsService.createCustomTradePair(modalSearchQuery, targetQuote);
+                        if (pair) {
+                          handleSelectPair(pair);
+                        } else {
+                          const fallback = tradeMarketsService.getPairBySymbol(modalSearchQuery);
+                          if (fallback) handleSelectPair(fallback);
+                        }
+                      }}
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-[#00FF41] hover:bg-[#00D836] text-black font-bold text-xs transition-colors"
+                    >
+                      <span>Trade {modalSearchQuery.toUpperCase()}/{modalQuoteFilter !== 'ALL' ? modalQuoteFilter : 'USDT'} Now</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 modalFilteredPairs.map((p, idx) => (
@@ -603,31 +905,46 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
           />
         ) : (
           <>
-            {/* Large Hero Price Section */}
-            <div className="flex flex-wrap items-baseline justify-between gap-4 pb-2">
+            {/* Large Hero Price Section (Matching Screenshot 1) */}
+            <div className="flex flex-wrap items-baseline justify-between gap-4 pb-2 border-b border-[#141414]">
               <div>
                 <div className="flex items-baseline space-x-3">
-                  <span className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedPair.change24h >= 0 ? 'text-[#00FF41]' : 'text-red-500'}`}>
+                  <span className="text-4xl sm:text-5xl font-black tracking-tight text-white">
                     {selectedPair.priceFormatted}
                   </span>
-                  <span className="text-lg text-[#888] font-bold">{selectedPair.quote}</span>
-                  <span className={`text-lg sm:text-xl font-bold ${selectedPair.change24h >= 0 ? 'text-[#00FF41]' : 'text-red-500'}`}>
+                  <span className={`text-base sm:text-xl font-bold font-mono ${selectedPair.change24h >= 0 ? 'text-[#00FF41]' : 'text-red-500'}`}>
                     {selectedPair.change24h >= 0 ? `+${selectedPair.change24h}%` : `${selectedPair.change24h}%`}
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-3 text-xs text-[#777] mt-1">
-                  <span>≈ ${(selectedPair.price * (selectedPair.quote === 'BSV' ? 48.60 : selectedPair.quote === 'SOL' ? 148.50 : selectedPair.quote === 'ETH' ? 2642.50 : selectedPair.quote === 'BTC' ? 64250 : 1)).toFixed(2)} USD</span>
-                  <span>•</span>
-                  <span>Spread: {selectedPair.spread}%</span>
-                  <span>•</span>
-                  <span className="text-[#00FF41]">{selectedPair.network}</span>
+                <div className="flex items-center space-x-3 text-xs text-[#777] mt-1 font-mono">
+                  <span>≈${selectedPair.priceFormatted}</span>
+                  <span>₿ {(selectedPair.price / 77700).toFixed(8)}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-[#181818] border border-[#282828] text-[#AAA] text-[10px] flex items-center space-x-1 cursor-pointer">
+                    <span>native</span>
+                    <span className="text-[9px]">▼</span>
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 text-[11px] text-[#00FF41] bg-[#00FF41]/10 px-3 py-1.5 rounded-lg border border-[#00FF41]/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
-                <span>22M+ Omni-Chain Settlement Active</span>
+              {/* 24h Stats Columns from Screenshot 1 */}
+              <div className="flex items-center space-x-5 text-xs font-mono">
+                <div>
+                  <div className="text-[10px] text-[#666] uppercase">24h High</div>
+                  <div className="text-white font-bold">{selectedPair.high24h}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-[#666] uppercase">24h Low</div>
+                  <div className="text-white font-bold">{selectedPair.low24h}</div>
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-[10px] text-[#666] uppercase">Vol({selectedPair.base})</div>
+                  <div className="text-white font-bold">{selectedPair.volBase}</div>
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-[10px] text-[#666] uppercase">Vol({selectedPair.quote})</div>
+                  <div className="text-white font-bold">{selectedPair.volQuote}</div>
+                </div>
               </div>
             </div>
 
@@ -657,7 +974,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                         : 'text-[#666] hover:text-white'
                     }`}
                   >
-                    Live Order Book ({selectedPair.symbol})
+                    Order Book
                   </button>
                   <button
                     onClick={() => setActiveBottomTab('trades')}
@@ -681,22 +998,34 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                   </button>
                 </div>
 
+                {/* Security Non-Custodial Notice from Screenshot 1 */}
+                <div className="px-3 py-2 bg-[#0C0C0C] border-b border-[#141414] text-[11px] text-[#777] flex items-center space-x-1.5 font-mono">
+                  <span className="text-[#00FF41]">ℹ</span>
+                  <span>Non-custodial — funds stay in your wallet until on-chain settlement</span>
+                </div>
+
                 {/* ORDER BOOK VIEW */}
                 {activeBottomTab === 'orderbook' && (
                   <div className="p-3">
                     {/* Header */}
-                    <div className="grid grid-cols-4 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414]">
-                      <div>AMOUNT ({selectedPair.base})</div>
-                      <div className="text-right text-[#00FF41]">BID ({selectedPair.quote})</div>
-                      <div className="text-left pl-3 text-red-500">ASK ({selectedPair.quote})</div>
-                      <div className="text-right">AMOUNT ({selectedPair.base})</div>
+                    <div className="grid grid-cols-4 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414] font-mono font-bold">
+                      <div>AMOUNT</div>
+                      <div className="text-right text-[#00FF41]">BID</div>
+                      <div className="text-left pl-3 text-red-500">ASK</div>
+                      <div className="text-right">AMOUNT</div>
                     </div>
 
                     {/* Rows */}
                     <div className="divide-y divide-[#101010] text-xs py-1">
                       {orderbook.map((row, idx) => (
-                        <div key={idx} className="grid grid-cols-4 py-1 relative items-center hover:bg-[#111] transition-colors">
-                          
+                        <div 
+                          key={idx} 
+                          className="grid grid-cols-4 py-1 relative items-center hover:bg-[#151515] transition-colors cursor-pointer group"
+                          onClick={() => {
+                            setPriceInput(tradeSide === 'buy' ? row.askPrice.toString() : row.bidPrice.toString());
+                          }}
+                          title="Click to copy price to trade form"
+                        >
                           {/* Bid side depth background bar */}
                           <div 
                             className="absolute left-0 top-0 bottom-0 bg-[#00FF41]/8 pointer-events-none"
@@ -710,27 +1039,31 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                           />
 
                           {/* Bid Amount */}
-                          <div className="text-[#888] font-mono z-10">
+                          <div className="text-[#888] font-mono z-10 group-hover:text-white transition-colors">
                             {row.bidAmount.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           </div>
 
                           {/* Bid Price */}
-                          <div className="text-right font-bold text-[#00FF41] font-mono z-10">
+                          <div className="text-right font-bold text-[#00FF41] font-mono z-10 group-hover:underline">
                             {formatPrice(row.bidPrice)}
                           </div>
 
                           {/* Ask Price */}
-                          <div className="text-left pl-3 font-bold text-red-500 font-mono z-10">
+                          <div className="text-left pl-3 font-bold text-red-500 font-mono z-10 group-hover:underline">
                             {formatPrice(row.askPrice)}
                           </div>
 
                           {/* Ask Amount */}
-                          <div className="text-right text-[#888] font-mono z-10">
+                          <div className="text-right text-[#888] font-mono z-10 group-hover:text-white transition-colors">
                             {row.askAmount.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           </div>
 
                         </div>
                       ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-[#141414] text-[10px] text-[#555] flex justify-between items-center">
+                      <span>Tip: Click any price row in the book to instantly set your order price.</span>
+                      <span className="text-[#00FF41] font-mono font-bold">Spread: {(selectedPair.price * 0.0004).toFixed(selectedPair.price < 1 ? 6 : 2)} {selectedPair.quote}</span>
                     </div>
                   </div>
                 )}
@@ -759,65 +1092,138 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
 
                 {/* MY ORDERS VIEW */}
                 {activeBottomTab === 'orders' && (
-                  <div className="p-3">
+                  <div className="p-3 space-y-3">
+                    {/* Sub-tabs header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#181818] pb-2">
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          onClick={() => setOrderSubTab('all')}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+                            orderSubTab === 'all'
+                              ? 'bg-[#1E1E1E] text-white border border-[#333]'
+                              : 'text-[#777] hover:text-white'
+                          }`}
+                        >
+                          All ({openOrders.length})
+                        </button>
+                        <button
+                          onClick={() => setOrderSubTab('open_limit')}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+                            orderSubTab === 'open_limit'
+                              ? 'bg-[#1E1E1E] text-white border border-[#333]'
+                              : 'text-[#777] hover:text-white'
+                          }`}
+                        >
+                          Open Limit ({openOrders.filter(o => o.status === 'open').length})
+                        </button>
+                        <button
+                          onClick={() => setOrderSubTab('stop_orders')}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+                            orderSubTab === 'stop_orders'
+                              ? 'bg-[#1E1E1E] text-white border border-[#333]'
+                              : 'text-[#777] hover:text-white'
+                          }`}
+                        >
+                          Stop Orders ({openOrders.filter(o => o.status === 'trigger_pending').length})
+                        </button>
+                        <button
+                          onClick={() => setOrderSubTab('history')}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+                            orderSubTab === 'history'
+                              ? 'bg-[#1E1E1E] text-white border border-[#333]'
+                              : 'text-[#777] hover:text-white'
+                          }`}
+                        >
+                          History ({openOrders.filter(o => o.status === 'filled' || o.status === 'cancelled').length})
+                        </button>
+                      </div>
+
+                      {openOrders.some(o => o.status === 'open' || o.status === 'trigger_pending') && (
+                        <button
+                          onClick={handleCancelAllOrders}
+                          className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[10px] font-bold transition-colors"
+                        >
+                          Cancel All Active
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Orders List */}
                     {openOrders.length === 0 ? (
                       <div className="p-8 text-center text-xs text-[#666] space-y-2">
                         <div className="text-2xl">📋</div>
-                        <div>No open limit orders.</div>
-                        <div className="text-[10px] text-[#555]">Submit a limit or market order to view live settlement on {selectedPair.network}.</div>
+                        <div>No open orders found.</div>
+                        <div className="text-[10px] text-[#555]">Submit a Limit, Market, or Stop Loss order on the right panel.</div>
                       </div>
                     ) : (
                       <div>
-                        <div className="grid grid-cols-6 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414]">
+                        <div className="grid grid-cols-7 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414]">
                           <div>PAIR / TIME</div>
                           <div>TYPE / SIDE</div>
+                          <div className="text-right">TRIGGER</div>
                           <div className="text-right">PRICE</div>
                           <div className="text-right">AMOUNT</div>
                           <div className="text-center">STATUS</div>
                           <div className="text-right">ACTION</div>
                         </div>
                         <div className="divide-y divide-[#121212] text-xs py-1">
-                          {openOrders.map((ord) => (
-                            <div key={ord.id} className="grid grid-cols-6 py-2 items-center hover:bg-[#111] px-1 rounded">
-                              <div>
-                                <div className="text-white font-bold">{ord.pairSymbol}</div>
-                                <div className="text-[10px] text-[#666]">{ord.timestamp}</div>
+                          {openOrders
+                            .filter(ord => {
+                              if (orderSubTab === 'open_limit') return ord.status === 'open';
+                              if (orderSubTab === 'stop_orders') return ord.status === 'trigger_pending';
+                              if (orderSubTab === 'history') return ord.status === 'filled' || ord.status === 'cancelled';
+                              return true;
+                            })
+                            .map((ord) => (
+                              <div key={ord.id} className="grid grid-cols-7 py-2 items-center hover:bg-[#111] px-1 rounded">
+                                <div>
+                                  <div className="text-white font-bold">{ord.pairSymbol}</div>
+                                  <div className="text-[10px] text-[#666]">{ord.timestamp}</div>
+                                </div>
+                                <div>
+                                  <span className={`font-bold uppercase ${ord.side === 'buy' ? 'text-[#00FF41]' : 'text-red-500'}`}>
+                                    {ord.side}
+                                  </span>{' '}
+                                  <span className="text-[10px] text-[#777] uppercase block">
+                                    {ord.type.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="text-right font-mono text-amber-400">
+                                  {ord.triggerPrice ? `$${formatPrice(ord.triggerPrice)}` : '—'}
+                                </div>
+                                <div className="text-right font-mono font-bold text-white">
+                                  ${formatPrice(ord.price)}
+                                </div>
+                                <div className="text-right font-mono text-[#AAA]">
+                                  {ord.amount} {ord.base}
+                                </div>
+                                <div className="text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                    ord.status === 'filled' 
+                                      ? 'bg-[#00FF41]/20 text-[#00FF41] border border-[#00FF41]/30'
+                                      : ord.status === 'trigger_pending'
+                                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse'
+                                      : ord.status === 'open'
+                                      ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30'
+                                      : 'bg-[#222] text-[#666] border border-[#333]'
+                                  }`}>
+                                    {ord.status === 'trigger_pending' ? 'Armed' : ord.status}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  {(ord.status === 'open' || ord.status === 'trigger_pending') ? (
+                                    <button
+                                      onClick={() => handleCancelOrder(ord.id)}
+                                      className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[10px] transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-[#555] capitalize">{ord.status}</span>
+                                  )}
+                                </div>
                               </div>
-                              <div>
-                                <span className={`font-bold uppercase ${ord.side === 'buy' ? 'text-[#00FF41]' : 'text-red-500'}`}>
-                                  {ord.side}
-                                </span>{' '}
-                                <span className="text-[10px] text-[#777] uppercase">({ord.type})</span>
-                              </div>
-                              <div className="text-right font-mono font-bold text-white">
-                                ${formatPrice(ord.price)}
-                              </div>
-                              <div className="text-right font-mono text-[#AAA]">
-                                {ord.amount} {ord.base}
-                              </div>
-                              <div className="text-center">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                  ord.status === 'filled' 
-                                    ? 'bg-[#00FF41]/20 text-[#00FF41] border border-[#00FF41]/30'
-                                    : 'bg-amber-400/20 text-amber-400 border border-amber-400/30'
-                                }`}>
-                                  {ord.status}
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                {ord.status === 'open' ? (
-                                  <button
-                                    onClick={() => handleCancelOrder(ord.id)}
-                                    className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[10px] transition-colors"
-                                  >
-                                    Cancel
-                                  </button>
-                                ) : (
-                                  <span className="text-[10px] text-[#555]">Settled</span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     )}
@@ -835,7 +1241,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                     <button
                       type="button"
                       onClick={() => setTradeSide('buy')}
-                      className={`py-2 rounded-md font-bold uppercase transition-all ${
+                      className={`py-2 rounded-md font-black uppercase text-xs transition-all ${
                         tradeSide === 'buy'
                           ? 'bg-[#00FF41] text-black shadow-md'
                           : 'text-[#888] hover:text-white'
@@ -846,7 +1252,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                     <button
                       type="button"
                       onClick={() => setTradeSide('sell')}
-                      className={`py-2 rounded-md font-bold uppercase transition-all ${
+                      className={`py-2 rounded-md font-black uppercase text-xs transition-all ${
                         tradeSide === 'sell'
                           ? 'bg-red-500 text-white shadow-md'
                           : 'text-[#888] hover:text-white'
@@ -856,97 +1262,205 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                     </button>
                   </div>
 
-                  {/* Order Type */}
-                  <div className="flex items-center justify-between text-[11px] text-[#777]">
-                    <div className="flex space-x-2">
+                  {/* Order Type Selector */}
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-[#121212] rounded-lg text-center">
+                    {[
+                      { id: 'limit', label: 'Limit' },
+                      { id: 'market', label: 'Market' },
+                      { id: 'stop_loss', label: 'Stop Loss' },
+                      { id: 'stop_limit', label: 'Stop Limit' }
+                    ].map(type => (
                       <button
+                        key={type.id}
                         type="button"
-                        onClick={() => setOrderType('limit')}
-                        className={`font-bold ${orderType === 'limit' ? 'text-white underline' : 'text-[#666]'}`}
+                        onClick={() => setOrderType(type.id as any)}
+                        className={`py-1.5 rounded text-[11px] font-bold transition-all ${
+                          orderType === type.id
+                            ? 'bg-[#222] text-white shadow-sm border border-[#333]'
+                            : 'text-[#777] hover:text-white'
+                        }`}
                       >
-                        Limit
+                        {type.label}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setOrderType('market')}
-                        className={`font-bold ${orderType === 'market' ? 'text-white underline' : 'text-[#666]'}`}
-                      >
-                        Market
-                      </button>
-                    </div>
-                    <span>Avail: {account ? `${account.balanceBsv.toFixed(2)} BSV` : `0.00 ${selectedPair.quote}`}</span>
+                    ))}
                   </div>
 
-                  {/* Price Field */}
-                  {orderType === 'limit' && (
-                    <div>
-                      <label className="block text-[10px] text-[#666] uppercase mb-1">Price ({selectedPair.quote})</label>
+                  {/* Available Balance Row with 1-Click Faucet */}
+                  <div className="flex items-center justify-between text-[11px] bg-[#101010] p-2 rounded-lg border border-[#1C1C1C]">
+                    <div className="text-[#888]">
+                      Avail:{' '}
+                      <strong className="text-white font-mono">
+                        {tradeSide === 'buy'
+                          ? `${availableQuote.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedPair.quote}`
+                          : `${availableBase.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${selectedPair.base}`}
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        refreshBalance();
+                        setOrderNotification({
+                          type: 'success',
+                          text: 'Live on-chain wallet balances refreshed!'
+                        });
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#181818] text-[#888] hover:text-[#00FF41] border border-[#282828] hover:border-[#00FF41]/40 transition-colors flex items-center space-x-1"
+                      title="Sync live balances"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Sync</span>
+                    </button>
+                  </div>
+
+                  {/* Trigger Stop Price Field (For Stop Loss / Stop Limit) */}
+                  {(orderType === 'stop_loss' || orderType === 'stop_limit') && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-[#888] uppercase">
+                        <span>Trigger Stop Price ({selectedPair.quote})</span>
+                        <span className="text-amber-400 font-mono">
+                          {tradeSide === 'sell' ? 'Trigger on Drop ≤' : 'Trigger on Rise ≥'}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder={selectedPair.price.toString()}
+                        value={stopPriceInput}
+                        onChange={(e) => setStopPriceInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#121212] border border-amber-500/40 rounded-lg text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                      <div className="text-[10px] text-[#666]">
+                        {orderType === 'stop_loss'
+                          ? 'Order executes as Market fill once trigger price is touched.'
+                          : 'Order places Limit order into book once trigger price is touched.'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Field (Not needed for pure Market orders) */}
+                  {orderType !== 'market' && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-[#888] uppercase">
+                        <span>Price ({selectedPair.quote})</span>
+                        <button
+                          type="button"
+                          onClick={() => setPriceInput(selectedPair.price.toString())}
+                          className="text-[#00FF41] hover:underline"
+                        >
+                          Market Price
+                        </button>
+                      </div>
                       <input
                         type="number"
                         step="any"
                         value={priceInput}
                         onChange={(e) => setPriceInput(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#121212] border border-[#222] rounded-lg text-white focus:outline-none focus:border-[#00FF41]"
+                        className="w-full px-3 py-2 bg-[#121212] border border-[#222] rounded-lg text-white font-mono focus:outline-none focus:border-[#00FF41]"
                       />
                     </div>
                   )}
 
                   {/* Amount Field */}
-                  <div>
-                    <label className="block text-[10px] text-[#666] uppercase mb-1">Amount ({selectedPair.base})</label>
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-[#888] uppercase">Amount ({selectedPair.base})</label>
                     <input
                       type="number"
                       step="any"
                       value={amountInput}
                       onChange={(e) => setAmountInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#121212] border border-[#222] rounded-lg text-white focus:outline-none focus:border-[#00FF41]"
+                      className="w-full px-3 py-2 bg-[#121212] border border-[#222] rounded-lg text-white font-mono focus:outline-none focus:border-[#00FF41]"
                     />
                   </div>
 
-                  {/* Quick % Buttons */}
+                  {/* Quick % Buttons calculated against actual available balance */}
                   <div className="grid grid-cols-4 gap-1 text-[10px]">
-                    {['25%', '50%', '75%', '100%'].map(pct => (
+                    {[25, 50, 75, 100].map(pct => (
                       <button
                         key={pct}
                         type="button"
-                        onClick={() => setAmountInput((parseFloat(pct) * 0.5).toString())}
-                        className="py-1 bg-[#121212] hover:bg-[#1C1C1C] border border-[#222] rounded text-[#888] hover:text-white"
+                        onClick={() => handlePercentClick(pct)}
+                        className="py-1 bg-[#121212] hover:bg-[#1C1C1C] border border-[#222] rounded font-bold text-[#888] hover:text-white transition-colors"
                       >
-                        {pct}
+                        {pct}%
                       </button>
                     ))}
+                  </div>
+
+                  {/* TP / SL Bracket Collapsible Toggle */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setAttachTpSl(!attachTpSl)}
+                      className="flex items-center space-x-1.5 text-[11px] text-[#888] hover:text-white font-bold transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={attachTpSl}
+                        onChange={() => {}}
+                        className="rounded bg-[#1A1A1A] border-[#333] text-[#00FF41] focus:ring-0"
+                      />
+                      <span>Attach Take Profit / Stop Loss</span>
+                    </button>
+
+                    {attachTpSl && (
+                      <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-[#101010] rounded-lg border border-[#1A1A1A]">
+                        <div>
+                          <label className="block text-[9px] text-[#00FF41] uppercase font-bold mb-0.5">TP Price</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={takeProfitInput}
+                            onChange={(e) => setTakeProfitInput(e.target.value)}
+                            placeholder="Target"
+                            className="w-full px-2 py-1 bg-[#161616] border border-[#2A2A2A] rounded text-white font-mono text-xs focus:outline-none focus:border-[#00FF41]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] text-red-400 uppercase font-bold mb-0.5">SL Price</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={stopLossInput}
+                            onChange={(e) => setStopLossInput(e.target.value)}
+                            placeholder="Stop"
+                            className="w-full px-2 py-1 bg-[#161616] border border-[#2A2A2A] rounded text-white font-mono text-xs focus:outline-none focus:border-red-500"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Total Order Cost Summary */}
                   <div className="p-2.5 bg-[#0D0D0D] rounded-lg border border-[#181818] space-y-1 text-[11px] text-[#777]">
                     <div className="flex justify-between">
-                      <span>Total Est:</span>
-                      <span className="text-white font-bold">
-                        {((parseFloat(priceInput) || 0) * (parseFloat(amountInput) || 0)).toFixed(selectedPair.price < 1 ? 4 : 2)} {selectedPair.quote}
+                      <span>Total Value:</span>
+                      <span className="text-white font-mono font-bold">
+                        {((parseFloat(priceInput) || selectedPair.price) * (parseFloat(amountInput) || 0)).toFixed(selectedPair.price < 1 ? 4 : 2)} {selectedPair.quote}
                       </span>
                     </div>
                     <div className="flex justify-between text-[10px]">
                       <span>Protocol Fee:</span>
-                      <span className="text-[#00FF41]">0.01% (VIP Rebate)</span>
+                      <span className="text-[#00FF41] font-mono">0.01% (VIP Zero Slippage)</span>
                     </div>
                     <div className="flex justify-between text-[10px]">
                       <span>Settlement Channel:</span>
-                      <span className="text-amber-400">{selectedPair.network}</span>
+                      <span className="text-amber-400 font-bold">{selectedPair.network}</span>
                     </div>
                   </div>
 
                   {/* Submit CTA */}
                   <button
                     type="submit"
+                    disabled={isSubmitting}
                     className={`w-full py-3.5 rounded-lg font-black uppercase text-xs tracking-wider shadow-lg active:scale-[0.98] transition-all flex items-center justify-center space-x-1.5 ${
                       tradeSide === 'buy'
-                        ? 'bg-[#00FF41] hover:bg-[#00D436] text-black'
-                        : 'bg-red-500 hover:bg-red-600 text-white'
+                        ? 'bg-[#00FF41] hover:bg-[#00D436] text-black font-black'
+                        : 'bg-red-500 hover:bg-red-600 text-white font-black'
                     }`}
                   >
                     <span>
                       {isConnected 
-                        ? `${tradeSide.toUpperCase()} ${selectedPair.base}`
+                        ? `${tradeSide.toUpperCase()} ${selectedPair.base} (${orderType.replace('_', ' ').toUpperCase()})`
                         : 'Connect Wallet to Trade'}
                     </span>
                   </button>
@@ -954,9 +1468,19 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                 </form>
 
                 {orderNotification && (
-                  <div className="mt-3 p-2.5 rounded-lg bg-[#00FF41]/10 border border-[#00FF41]/30 text-[#00FF41] text-xs flex items-center space-x-1.5 animate-in fade-in duration-200">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                    <span>{orderNotification}</span>
+                  <div className={`mt-3 p-2.5 rounded-lg text-xs flex items-center space-x-1.5 animate-in fade-in duration-200 border ${
+                    orderNotification.type === 'success'
+                      ? 'bg-[#00FF41]/10 border-[#00FF41]/30 text-[#00FF41]'
+                      : orderNotification.type === 'warn'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                  }`}>
+                    {orderNotification.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    )}
+                    <span>{orderNotification.text}</span>
                   </div>
                 )}
               </div>

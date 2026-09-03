@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Coin } from '../types/dex';
 import { CoinLogo } from './CoinLogo';
+import { copyToClipboard } from '../utils/clipboard';
+import { getVerifiedTokenContract, VERIFIED_TOKEN_CONTRACTS } from '../utils/tokenContracts';
 
 interface CoinDetailModalProps {
   coin: Coin | null;
@@ -32,7 +34,7 @@ interface CoinDetailModalProps {
   onToggleFavorite?: (symbol: string) => void;
 }
 
-type Timeframe = '1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL';
+type Timeframe = '1H' | '24H' | '1w' | '1m' | '1y' | '10yr' | 'All';
 
 export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
   coin,
@@ -46,45 +48,23 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
   const [hoveredPoint, setHoveredPoint] = useState<{ price: number; time: string } | null>(null);
   const [copiedContract, setCopiedContract] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
-  if (!coin) return null;
-
-  const formatPrice = (p?: number) => {
-    if (p === undefined || p === null) return '$0.00';
-    if (p >= 1000) return '$' + p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (p >= 1) return '$' + p.toFixed(p < 10 ? 3 : 2);
-    if (p >= 0.0001) return '$' + p.toFixed(6);
-    return '$' + p.toFixed(8);
-  };
-
-  const formatLargeUsd = (num?: number) => {
-    if (!num) return '$0';
-    if (num >= 1000000000000) return '$' + (num / 1000000000000).toFixed(2) + 'T';
-    if (num >= 1000000000) return '$' + (num / 1000000000).toFixed(2) + 'B';
-    if (num >= 1000000) return '$' + (num / 1000000).toFixed(2) + 'M';
-    if (num >= 1000) return '$' + (num / 1000).toFixed(2) + 'K';
-    return '$' + num.toLocaleString();
-  };
-
-  const formatSupply = (num?: number, symbol?: string) => {
-    if (!num) return 'N/A';
-    if (num >= 1000000000) return `${(num / 1000000000).toFixed(2)}B ${symbol || ''}`;
-    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M ${symbol || ''}`;
-    if (num >= 1000) return `${(num / 1000).toFixed(2)}K ${symbol || ''}`;
-    return `${num.toLocaleString()} ${symbol || ''}`;
-  };
+  // Derive verified contract and explorer info
+  const contractAddress = coin?.contractAddress || getVerifiedTokenContract(coin?.symbol);
+  const explorerInfo = coin ? VERIFIED_TOKEN_CONTRACTS[coin.symbol.toUpperCase()] : null;
 
   // Derive realistic detailed statistics if not explicitly present
-  const price = coin.priceUsd || 1.0;
-  const change = coin.change24h ?? 2.45;
-  const high24h = coin.high24h || price * (1 + Math.max(0.015, Math.abs(change) * 0.01 + 0.015));
-  const low24h = coin.low24h || price * (1 - Math.max(0.015, Math.abs(change) * 0.01 + 0.015));
-  const marketCap = coin.marketCapUsd || price * 125000000;
-  const volume24h = coin.volume24hUsd || price * 18000000;
-  const athUsd = coin.athUsd || (price > 100 ? price * 1.85 : price * 3.2);
-  const atlUsd = coin.atlUsd || (price * 0.08);
-  const circulatingSupply = coin.circulatingSupply || Math.floor(marketCap / Math.max(0.00001, price));
-  const totalSupply = coin.totalSupply || circulatingSupply * 1.25;
+  const price = coin?.priceUsd || 1.0;
+  const change = coin?.change24h ?? 2.45;
+  const high24h = coin?.high24h || price * (1 + Math.max(0.015, Math.abs(change) * 0.01 + 0.015));
+  const low24h = coin?.low24h || price * (1 - Math.max(0.015, Math.abs(change) * 0.01 + 0.015));
+  const marketCap = coin?.marketCapUsd || price * 125000000;
+  const volume24h = coin?.volume24hUsd || price * 18000000;
+  const athUsd = coin?.athUsd || (price > 100 ? price * 1.85 : price * 3.2);
+  const atlUsd = coin?.atlUsd || (price * 0.08);
+  const circulatingSupply = coin?.circulatingSupply || Math.floor(marketCap / Math.max(0.00001, price));
+  const totalSupply = coin?.totalSupply || circulatingSupply * 1.25;
   const volToMcap = ((volume24h / Math.max(1, marketCap)) * 100).toFixed(2);
   const athDistance = (((price - athUsd) / athUsd) * 100).toFixed(1);
   const atlGain = (((price - atlUsd) / atlUsd) * 100).toFixed(0);
@@ -95,6 +75,7 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
 
   // Generate realistic sparkline / chart curve for the active timeframe
   const chartPoints = useMemo(() => {
+    if (!coin) return [];
     const count = 48;
     const pts: { x: number; y: number; price: number; time: string }[] = [];
     
@@ -137,7 +118,35 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
     }
 
     return pts;
-  }, [coin.symbol, price, change, activeTimeframe]);
+  }, [coin?.symbol, price, change, activeTimeframe]);
+
+  // Return null if no coin is selected AFTER all hooks have executed
+  if (!coin) return null;
+
+  const formatPrice = (p?: number) => {
+    if (p === undefined || p === null) return '$0.00';
+    if (p >= 1000) return '$' + p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (p >= 1) return '$' + p.toFixed(p < 10 ? 3 : 2);
+    if (p >= 0.0001) return '$' + p.toFixed(6);
+    return '$' + p.toFixed(8);
+  };
+
+  const formatLargeUsd = (num?: number) => {
+    if (!num) return '$0';
+    if (num >= 1000000000000) return '$' + (num / 1000000000000).toFixed(2) + 'T';
+    if (num >= 1000000000) return '$' + (num / 1000000000).toFixed(2) + 'B';
+    if (num >= 1000000) return '$' + (num / 1000000).toFixed(2) + 'M';
+    if (num >= 1000) return '$' + (num / 1000).toFixed(2) + 'K';
+    return '$' + num.toLocaleString();
+  };
+
+  const formatSupply = (num?: number, symbol?: string) => {
+    if (!num) return 'N/A';
+    if (num >= 1000000000) return `${(num / 1000000000).toFixed(2)}B ${symbol || ''}`;
+    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M ${symbol || ''}`;
+    if (num >= 1000) return `${(num / 1000).toFixed(2)}K ${symbol || ''}`;
+    return `${num.toLocaleString()} ${symbol || ''}`;
+  };
 
   // Compute SVG chart path
   const minChartPrice = Math.min(...chartPoints.map(p => p.price)) * 0.995;
@@ -153,17 +162,26 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
 
   const areaPath = `M 0,${chartHeight} L ${svgPoints} L ${chartWidth},${chartHeight} Z`;
 
-  const copyContract = () => {
-    const addr = coin.contractAddress || `0x${coin.symbol.toLowerCase()}...protocol_vault`;
-    navigator.clipboard.writeText(addr);
+  const copyContract = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const addr = contractAddress;
+    const success = await copyToClipboard(addr);
     setCopiedContract(true);
-    setTimeout(() => setCopiedContract(false), 2000);
+    setCopyToast(success ? `Contract address copied: ${addr.slice(0, 8)}...${addr.slice(-6)}` : `Copied: ${addr}`);
+    setTimeout(() => setCopiedContract(false), 2500);
+    setTimeout(() => setCopyToast(null), 3500);
   };
 
-  const copyShareLink = () => {
-    navigator.clipboard.writeText(window.location.origin + `?coin=${coin.symbol}`);
+  const copyShareLink = async () => {
+    const link = window.location.origin + `?coin=${coin.symbol}`;
+    const success = await copyToClipboard(link);
     setCopiedShare(true);
+    setCopyToast(success ? `Share link copied for ${coin.symbol}!` : link);
     setTimeout(() => setCopiedShare(false), 2000);
+    setTimeout(() => setCopyToast(null), 3000);
   };
 
   // Generate rich descriptive narrative
@@ -337,7 +355,7 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
           {/* Timeframe selector pills */}
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#161616]">
             <div className="flex items-center space-x-1 font-mono">
-              {(['1H', '24H', '7D', '30D', '1Y', 'ALL'] as Timeframe[]).map(tf => (
+              {(['1H', '24H', '1w', '1m', '1y', '10yr', 'All'] as Timeframe[]).map(tf => (
                 <button
                   key={tf}
                   onClick={() => setActiveTimeframe(tf)}
@@ -503,18 +521,61 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
             </div>
 
             {/* Contract Address / Vault Identifier */}
-            <div className="flex items-center justify-between p-2 bg-[#0A0A0A] rounded border border-[#1F1F1F] font-mono text-[11px]">
-              <span className="text-[#777] shrink-0 mr-2">Contract / Vault:</span>
-              <span className="text-white truncate">
-                {coin.contractAddress || `0x${coin.symbol.toLowerCase()}_native_vault_contract_22m`}
-              </span>
-              <button 
-                onClick={copyContract}
-                className="ml-2 text-[#777] hover:text-[#00FF41] shrink-0 p-1"
-                title="Copy Address"
-              >
-                {copiedContract ? <Check className="w-3.5 h-3.5 text-[#00FF41]" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
+            <div 
+              onClick={copyContract}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copyContract(); }}
+              className={`flex items-center justify-between p-2.5 sm:p-3 rounded-lg border font-mono text-[11px] cursor-pointer transition-all active:scale-[0.99] select-all group ${
+                copiedContract 
+                  ? 'bg-[#00FF41]/15 border-[#00FF41] shadow-[0_0_15px_rgba(0,255,65,0.25)]' 
+                  : 'bg-[#0A0A0A] hover:bg-[#121212] border-[#1F1F1F] hover:border-[#333]'
+              }`}
+              title="Click anywhere to copy contract address"
+            >
+              <div className="flex items-center min-w-0 mr-2">
+                <span className="text-[#777] shrink-0 mr-2 text-[10px] uppercase font-bold tracking-wider">Contract / Vault:</span>
+                <span className="text-white truncate font-mono select-all text-xs font-semibold">
+                  {contractAddress}
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-1.5 shrink-0">
+                {explorerInfo?.explorerUrl && (
+                  <a
+                    href={explorerInfo.explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-2 text-[#777] hover:text-[#00FF41] rounded-md hover:bg-[#1C1C1C] min-h-[38px] min-w-[38px] flex items-center justify-center transition-colors"
+                    title="View Verified Contract on Explorer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button 
+                  type="button"
+                  onClick={copyContract}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all min-h-[38px] flex items-center space-x-1.5 ${
+                    copiedContract 
+                      ? 'bg-[#00FF41] text-black shadow-sm font-black' 
+                      : 'bg-[#1C1C1C] text-[#AAA] group-hover:text-white group-hover:bg-[#252525]'
+                  }`}
+                  title="Copy Contract Address"
+                >
+                  {copiedContract ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                      <span className="text-[10px] tracking-wider uppercase font-black">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span className="text-[10px] tracking-wider uppercase">Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -569,6 +630,14 @@ export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
           </div>
 
         </div>
+
+        {/* Floating Copy Feedback Toast */}
+        {copyToast && (
+          <div className="fixed sm:absolute bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#00FF41] text-black text-xs font-mono font-bold rounded-xl shadow-[0_10px_30px_rgba(0,255,65,0.4)] flex items-center space-x-2 border border-black/20 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2.5]" />
+            <span className="truncate max-w-[280px] sm:max-w-md">{copyToast}</span>
+          </div>
+        )}
 
       </div>
     </div>

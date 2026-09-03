@@ -124,10 +124,10 @@ export const OrahDexLanding: React.FC<OrahDexLandingProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#E0E0E0] font-sans flex flex-col items-center justify-start pb-20 selection:bg-[#00FF41] selection:text-black">
+    <div className="min-h-screen w-full max-w-full overflow-hidden relative bg-[#050505] text-[#E0E0E0] font-sans flex flex-col items-center justify-start pb-20 selection:bg-[#00FF41] selection:text-black">
       
       {/* Background Subtle Radial Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-gradient-to-b from-[#00FF41]/8 via-[#00F0FF]/3 to-transparent blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[800px] h-[500px] bg-gradient-to-b from-[#00FF41]/8 via-[#00F0FF]/3 to-transparent blur-3xl pointer-events-none -z-10" />
 
       {/* Hero Section */}
       <div className="w-full max-w-4xl mx-auto px-4 pt-12 sm:pt-16 pb-10 flex flex-col items-center text-center">

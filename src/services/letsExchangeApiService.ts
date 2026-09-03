@@ -43,7 +43,7 @@ export interface ApiStatus {
 export const DEFAULT_LETSEXCHANGE_JWT = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0b2tlbiIsImRhdGEiOnsiaWQiOjE2OTIsImhhc2giOiJleUpwZGlJNklqTlJPV3hVWlhsSVhDOXhOVVptWjFac1lsd3ZhV3hMUVQwOUlpd2lkbUZzZFdVaU9pSnNSVkFyWVd0NVVYVnRhV3hDU21KMFoxd3ZaWFkxU1ZKV1ZIQlZaREpNV1RKdFRWUjJhRUoyYVZGQmJuQlVjV3RSUXpoQ1NHazNNa3A2Y2xsS05XNTZTVWcwTUVoUE0wOHhlVXRtWlVjd04wWlZaRWRvZVdGNE0yazVOSEIyYkU4eVdFVmlkVzFuUmpnclFUUTlJaXdpYldGaklqb2lZVE13WldSbE5UTmpaamxoT0dGa01UWTFPRFJqTURoa1kyRm1NVGxpWVdZelpEQmlZV000WldZeU1EWm1OamN5WXpRMFlUVTRNamt4TWpCbFpqUmpNeUo5In0sImlzcyI6Imh0dHBzOlwvXC9hcGkubGV0c2V4Y2hhbmdlLmlvXC9hcGlcL3YxXC9hcGkta2V5IiwiaWF0IjoxNzc3MTI5MjU5LCJleHAiOjIwOTg1MzcyNTksIm5iZiI6MTc3NzEyOTI1OSwianRpIjoiVHozMllLMmZKUGlVMm9ENCJ9.v3vOzjdXsDZIlxUdx99613-KYafHzIPLqPCtSauTl_k';
 
 const STORAGE_API_TOKEN = 'tradex_letsexchange_jwt_token';
-const STORAGE_LIVE_COINS = 'tradex_live_letsexchange_coins_v5';
+const STORAGE_LIVE_COINS = 'tradex_live_letsexchange_coins_v6';
 
 class LetsExchangeApiService {
   private static instance: LetsExchangeApiService;
@@ -97,6 +97,15 @@ class LetsExchangeApiService {
       } else {
         this.cachedCoins = baseCatalog;
       }
+
+      // Guarantee that priority coins (A8, LMWR, BSV, ORAH, AURA, RON) are present in cachedCoins
+      const prioritySymbols = ['A8', 'LMWR', 'BSV', 'ORAH', 'AURA', 'RON'];
+      prioritySymbols.forEach(sym => {
+        if (!this.cachedCoins.some(c => c.symbol === sym)) {
+          const match = baseCatalog.find(c => c.symbol === sym);
+          if (match) this.cachedCoins.unshift(match);
+        }
+      });
     } else {
       this.cachedCoins = buildLetsExchange22MMarketsCatalog();
     }

@@ -53,11 +53,14 @@ export const WalletModal: React.FC = () => {
   } = useWallet();
 
   // Submodal views
-  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan'>('main');
+  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext'>('main');
+  const [missingWalletInfo, setMissingWalletInfo] = useState<{ name: string; icon: string; installUrl: string; desc: string } | null>(null);
   const [handcashHandle, setHandcashHandle] = useState('$orah_trader');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [searchEvm, setSearchEvm] = useState('');
   const [activeWalletAction, setActiveWalletAction] = useState<string | null>(null);
+
+  const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   // Injected Extensions Detection state
   const [detected, setDetected] = useState<InjectedDetection>({
@@ -93,71 +96,133 @@ export const WalletModal: React.FC = () => {
 
   const handleClose = () => {
     setView('main');
+    setMissingWalletInfo(null);
     setActiveWalletAction(null);
     clearConnectionError();
     closeWalletModal();
   };
 
-  const handleConnectEvm = async (walletName: string) => {
+  const handleOpenInNewTab = () => {
+    if (typeof window !== 'undefined') {
+      window.open(window.location.href, '_blank');
+    }
+  };
+
+  const handleConnectEvm = async (walletName: string, isInstalled: boolean = false, installUrl: string = 'https://metamask.io/download/') => {
+    if (!isInstalled && !detected.hasAnyEvm) {
+      setMissingWalletInfo({
+        name: walletName,
+        icon: walletName.toLowerCase().includes('meta') ? '🦊' : walletName.toLowerCase().includes('coinbase') ? '🔵' : '🛡️',
+        installUrl,
+        desc: `${walletName} browser extension was not detected in this window.`
+      });
+      setView('missing_ext');
+      return;
+    }
+
     setActiveWalletAction(walletName);
     try {
       await connectInjectedEvm(walletName);
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
       handleClose();
-    } catch (e) {
-      console.warn('Real EVM Connection prompt rejected or failed:', e);
+    } catch (e: any) {
+      console.info('EVM Connection prompt rejected or extension missing:', e?.message || e);
     } finally {
       setActiveWalletAction(null);
     }
   };
 
   const handleConnectRonin = async () => {
+    if (!detected.hasRonin) {
+      setMissingWalletInfo({
+        name: 'Ronin Wallet',
+        icon: '⚔️',
+        installUrl: 'https://wallet.roninchain.com',
+        desc: 'Ronin Wallet browser extension was not detected.'
+      });
+      setView('missing_ext');
+      return;
+    }
+
     setActiveWalletAction('Ronin');
     try {
       await connectRonin();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
       handleClose();
-    } catch (e) {
-      console.warn('Ronin connection failed:', e);
+    } catch (e: any) {
+      console.info('Ronin connection note:', e?.message || e);
     } finally {
       setActiveWalletAction(null);
     }
   };
 
   const handleConnectSensilet = async () => {
+    if (!detected.hasSensilet) {
+      setMissingWalletInfo({
+        name: 'Sensilet BSV Wallet',
+        icon: '⚡',
+        installUrl: 'https://sensilet.com',
+        desc: 'Sensilet BSV browser extension was not detected.'
+      });
+      setView('missing_ext');
+      return;
+    }
+
     setActiveWalletAction('Sensilet');
     try {
       await connectSensilet();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
       handleClose();
-    } catch (e) {
-      console.warn('Sensilet connection failed:', e);
+    } catch (e: any) {
+      console.info('Sensilet connection note:', e?.message || e);
     } finally {
       setActiveWalletAction(null);
     }
   };
 
   const handleConnectYours = async () => {
+    if (!detected.hasYours) {
+      setMissingWalletInfo({
+        name: 'Yours BSV Wallet',
+        icon: '🐼',
+        installUrl: 'https://chromewebstore.google.com/detail/yours-wallet/mlbnicldeeddimhaameoaimhibkgfkdd',
+        desc: 'Yours BSV browser extension was not detected.'
+      });
+      setView('missing_ext');
+      return;
+    }
+
     setActiveWalletAction('Yours');
     try {
       await connectYours();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
       handleClose();
-    } catch (e) {
-      console.warn('Yours connection failed:', e);
+    } catch (e: any) {
+      console.info('Yours connection note:', e?.message || e);
     } finally {
       setActiveWalletAction(null);
     }
   };
 
   const handleConnectSolana = async () => {
+    if (!detected.hasPhantom) {
+      setMissingWalletInfo({
+        name: 'Phantom / Solana Wallet',
+        icon: '👻',
+        installUrl: 'https://phantom.app',
+        desc: 'Phantom / Solana browser extension was not detected.'
+      });
+      setView('missing_ext');
+      return;
+    }
+
     setActiveWalletAction('Phantom');
     try {
       await connectSolana();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
       handleClose();
-    } catch (e) {
-      console.warn('Solana connection failed:', e);
+    } catch (e: any) {
+      console.info('Solana connection note:', e?.message || e);
     } finally {
       setActiveWalletAction(null);
     }
@@ -532,7 +597,7 @@ export const WalletModal: React.FC = () => {
               {filteredEvmWallets.map((wallet) => (
                 <div
                   key={wallet.name}
-                  onClick={() => handleConnectEvm(wallet.name)}
+                  onClick={() => handleConnectEvm(wallet.name, wallet.isInstalled, wallet.installUrl)}
                   className="flex items-center justify-between p-3 rounded-xl bg-[#141414] hover:bg-[#1E1E1E] cursor-pointer transition-all border border-[#222] group"
                 >
                   <div className="flex items-center space-x-3">
@@ -560,16 +625,9 @@ export const WalletModal: React.FC = () => {
                     ) : wallet.isInstalled ? (
                       <span className="text-[10px] font-mono text-[#00FF41] font-bold">CONNECT</span>
                     ) : (
-                      <a
-                        href={wallet.installUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[10px] font-mono text-[#888] hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded bg-[#222]"
-                      >
-                        <span>GET</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
+                      <span className="text-[10px] font-mono text-[#888] group-hover:text-[#00FF41] flex items-center space-x-1 px-2 py-0.5 rounded bg-[#222]">
+                        <span>SELECT</span>
+                      </span>
                     )}
                     <ChevronRight className="w-4 h-4 text-[#555] group-hover:text-white" />
                   </div>
@@ -880,6 +938,112 @@ export const WalletModal: React.FC = () => {
             <p className="text-xs text-[#777]">
               Open your camera or mobile Web3 wallet (MetaMask, Phantom, HandCash, Trust) to connect your phone session.
             </p>
+          </div>
+        )}
+
+        {/* ================= VIEW 8: MISSING EXTENSION / IFRAME HELPER ================= */}
+        {view === 'missing_ext' && missingWalletInfo && (
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#1F1F1F]">
+              <button 
+                type="button" 
+                onClick={() => setView('main')} 
+                className="text-xs text-[#777] hover:text-white flex items-center space-x-1 font-mono"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </button>
+              <h3 className="text-base font-black text-white">Wallet Connection Helper</h3>
+              <button type="button" onClick={handleClose} className="text-[#777] hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Wallet Header */}
+            <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-[#141414] border border-[#262626]">
+              <div className="w-11 h-11 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center text-2xl">
+                {missingWalletInfo.icon}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-white flex items-center space-x-2">
+                  <span>{missingWalletInfo.name}</span>
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                    NOT DETECTED
+                  </span>
+                </div>
+                <div className="text-xs text-[#888] mt-0.5">
+                  {isInsideIframe 
+                    ? 'Running inside a sandboxed preview frame' 
+                    : 'Extension not found in this browser'}
+                </div>
+              </div>
+            </div>
+
+            {/* Explanation card */}
+            <div className="p-3.5 rounded-xl bg-[#121814] border border-[#00FF41]/20 space-y-2 text-xs text-[#A0A0A0] leading-relaxed">
+              {isInsideIframe ? (
+                <p>
+                  <strong className="text-white">Notice:</strong> Web browsers restrict extensions like {missingWalletInfo.name} from injecting into embedded iframes. Opening the app in a new browser tab connects directly to your installed extension.
+                </p>
+              ) : (
+                <p>
+                  <strong className="text-white">Notice:</strong> {missingWalletInfo.name} was not detected. You can install it, open in a full window, or connect immediately using device biometrics.
+                </p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              
+              {/* Option 1: Open in New Tab (if in iframe) */}
+              {isInsideIframe && (
+                <button
+                  type="button"
+                  onClick={handleOpenInNewTab}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all shadow-md active:scale-98"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open App in New Tab (Direct Extension Access)</span>
+                </button>
+              )}
+
+              {/* Option 2: Install Extension */}
+              <a
+                href={missingWalletInfo.installUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={`w-full py-2.5 px-3 rounded-xl ${
+                  isInsideIframe 
+                    ? 'bg-[#181818] hover:bg-[#222] text-white border border-[#333]' 
+                    : 'bg-[#00FF41] hover:bg-[#00D436] text-black font-black'
+                } text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all`}
+              >
+                <span>Install {missingWalletInfo.name} Extension</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              {/* Option 3: Use Hardware Passkey (Instant) */}
+              <button
+                type="button"
+                onClick={() => handleConnectPasskey('orah_trader')}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#141414] hover:bg-[#1A1A1A] border border-[#00FF41]/40 text-[#00FF41] font-bold text-xs flex items-center justify-center space-x-2 transition-all"
+              >
+                <Fingerprint className="w-4 h-4" />
+                <span>Connect via Hardware Passkey (Touch ID / Face ID)</span>
+              </button>
+
+              {/* Option 4: Import Seed / WIF */}
+              <button
+                type="button"
+                onClick={() => setView('seed_input')}
+                className="w-full py-2 px-3 rounded-xl bg-transparent hover:bg-[#181818] text-[#777] hover:text-white text-[11px] font-mono flex items-center justify-center space-x-1.5 transition-colors"
+              >
+                <Key className="w-3 h-3" />
+                <span>Or import 12-word seed / private key</span>
+              </button>
+
+            </div>
+
           </div>
         )}
 

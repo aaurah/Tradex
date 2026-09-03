@@ -859,14 +859,16 @@ export const AllCoinsDirectory: React.FC<AllCoinsDirectoryProps> = ({
       {/* ========================================================================= */}
       {/* 6. COIN DETAIL MODAL / DRAWER                                             */}
       {/* ========================================================================= */}
-      <CoinDetailModal
-        coin={selectedCoinForModal}
-        onClose={() => setSelectedCoinForModal(null)}
-        onSwapCoin={onSelectCoinForSwap}
-        onTradeCoin={(coin) => onSelectPairForTrade && onSelectPairForTrade(`${coin.symbol}/USDT`)}
-        isFavorite={selectedCoinForModal ? favorites.includes(selectedCoinForModal.symbol) : false}
-        onToggleFavorite={toggleFavorite}
-      />
+      {selectedCoinForModal && (
+        <CoinDetailModal
+          coin={selectedCoinForModal}
+          onClose={() => setSelectedCoinForModal(null)}
+          onSwapCoin={onSelectCoinForSwap}
+          onTradeCoin={(coin) => onSelectPairForTrade && onSelectPairForTrade(`${coin.symbol}/USDT`)}
+          isFavorite={favorites.includes(selectedCoinForModal.symbol)}
+          onToggleFavorite={toggleFavorite}
+        />
+      )}
 
     </div>
   );

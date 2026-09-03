@@ -70,6 +70,7 @@ export const EXTENSIVE_CRYPTO_DATABASE: RawCoinDef[] = [
   { sym: 'RON', name: 'Ronin Network', cat: 'ronin', price: 1.85, net: 'Ronin Chain', netCode: 'ron', icon: '⚔️', isRonin: true, min: 5, max: 25000 },
   { sym: 'WRON', name: 'Wrapped Ronin', cat: 'ronin', price: 1.85, net: 'Ronin Chain', netCode: 'ron', icon: '🌀', isRonin: true, min: 5, max: 25000 },
   { sym: 'A8', name: 'Ancient8 Gaming', cat: 'gaming', price: 0.245, net: 'Ancient8 Chain (EVM / Ronin)', netCode: 'a8', icon: '🎱', isRonin: true, isEVM: true, min: 20, max: 100000 },
+  { sym: 'LMWR', name: 'LimeWire', cat: 'ai', price: 0.228, net: 'Ethereum / Base (ERC-20)', netCode: 'eth', icon: '🍋', isEVM: true, min: 10, max: 100000 },
   { sym: 'AXS', name: 'Axie Infinity', cat: 'ronin', price: 5.6, net: 'Ronin Chain', netCode: 'ron', icon: '👾', isRonin: true, min: 2, max: 10000 },
   { sym: 'SLP', name: 'Smooth Love Potion', cat: 'ronin', price: 0.0034, net: 'Ronin Chain', netCode: 'ron', icon: '🧪', isRonin: true, min: 1000, max: 5000000 },
   { sym: 'PIXEL', name: 'Pixels (Ronin)', cat: 'ronin', price: 0.185, net: 'Ronin Chain', netCode: 'ron', icon: '🌾', isRonin: true, min: 50, max: 150000 },
@@ -429,7 +430,7 @@ export function generateFullLetsExchangeUniverse(): Coin[] {
   EXTENSIVE_CRYPTO_DATABASE.forEach((c, idx) => {
     const key = `${c.sym.toUpperCase()}_${c.netCode.toUpperCase()}`;
     const price = c.price;
-    const isPopular = idx < 30 || c.sym === 'ORAH' || c.sym === 'AURA' || c.sym === 'BSV' || c.sym === 'RON';
+    const isPopular = idx < 30 || c.sym === 'ORAH' || c.sym === 'AURA' || c.sym === 'BSV' || c.sym === 'RON' || c.sym === 'A8' || c.sym === 'LMWR';
     
     // Realistic pseudo-random 24h metrics calculated deterministically
     const seed = (c.sym.charCodeAt(0) * 31 + c.sym.charCodeAt(c.sym.length - 1)) % 100;
@@ -519,7 +520,7 @@ export function generateFullLetsExchangeUniverse(): Coin[] {
     { chainName: 'TON Network (Telegram)', chainCode: 'ton', category: 'layer1', tokenPrefixes: ['NOT', 'HMSTR', 'CATI', 'DOGS', 'MAJOR', 'WAT', 'STON', 'DEDUST', 'TONPUNKS', 'TONFISH', 'TONMEME', 'TONGAME', 'TONBOT', 'TONPAY', 'TONVAULT', 'TONSTAKE', 'TONMINE', 'JETTON', 'GRAM', 'PENGU', 'DUREV', 'REDO', 'FISH', 'TONSTARS', 'TONDAO'] },
     { chainName: 'Sui & Move Ecosystem', chainCode: 'sui', category: 'layer1', tokenPrefixes: ['SUI', 'CETUS', 'NAVX', 'SCA', 'TURBOS', 'SUIP', 'SUIA', 'BLUB', 'FUD', 'SUICAT', 'SUIDOG', 'SUIPERP', 'SUISWAP', 'SUIYIELD', 'SUINODE', 'SUIGAME', 'HIPPO', 'LOFI', 'SUIBA', 'PUG', 'NS', 'DEEP', 'SUIDEX', 'SUISTAKE'] },
     { chainName: 'Aptos Move Chain', chainCode: 'apt', category: 'layer1', tokenPrefixes: ['APT', 'THL', 'AMU', 'CELL', 'GUI', 'DOOD', 'APTPERP', 'APTSWAP', 'APTYIELD', 'APTLEND', 'APTNODE', 'APTGAME', 'APTSTAKE', 'MOJO', 'APTDOG', 'UPTOS', 'SHIRP', 'PROPS', 'MOVE', 'APTPAY', 'APTVAULT'] },
-    { chainName: 'AI & DePIN Compute', chainCode: 'eth', category: 'ai', isEVM: true, tokenPrefixes: ['AGIX', 'FET', 'OCEAN', 'TAO', 'RENDER', 'GRASS', 'IO', 'ATH', 'JASMY', 'GRT', 'LIVE', 'RLC', 'NKN', 'AIAGENT', 'AINEURAL', 'AIBOT', 'AILLM', 'AIGPU', 'AICOMPUTE', 'AICLOUD', 'AIVISION', 'AISYNAPSE', 'AICODER', 'AIORACLE', 'POKT', 'NOS', 'FLUX', 'AIOZ', 'AKT', 'HOPR', 'DATA', 'MOBILE', 'IOT'] },
+    { chainName: 'AI & DePIN Compute', chainCode: 'eth', category: 'ai', isEVM: true, tokenPrefixes: ['LMWR', 'AGIX', 'FET', 'OCEAN', 'TAO', 'RENDER', 'GRASS', 'IO', 'ATH', 'JASMY', 'GRT', 'LIVE', 'RLC', 'NKN', 'AIAGENT', 'AINEURAL', 'AIBOT', 'AILLM', 'AIGPU', 'AICOMPUTE', 'AICLOUD', 'AIVISION', 'AISYNAPSE', 'AICODER', 'AIORACLE', 'POKT', 'NOS', 'FLUX', 'AIOZ', 'AKT', 'HOPR', 'DATA', 'MOBILE', 'IOT'] },
     { chainName: 'Cosmos IBC Ecosystem', chainCode: 'atom', category: 'layer1', tokenPrefixes: ['ATOM', 'OSMO', 'INJ', 'TIA', 'DYM', 'KUJI', 'STRD', 'STARS', 'JUNO', 'SCRT', 'AKT', 'NTRN', 'AXL', 'EVMOS', 'MARS', 'SOMM', 'UMEE', 'CRE', 'QCK', 'PASG', 'ROWAN', 'BAND', 'KAVA', 'ARCH', 'KYVE', 'COSMOSX', 'IBCLINK'] },
     { chainName: 'Optimism Superchain (OP)', chainCode: 'op', category: 'evm', isEVM: true, tokenPrefixes: ['VELO', 'OP', 'LYRA', 'KWENTA', 'AELIN', 'THALES', 'SONNE', 'EXTRA', 'BEETS', 'RUBICON', 'SYNAPSE', 'HOP', 'BOBA', 'METIS', 'MANTLE', 'MODE', 'ZORA', 'REDSTONE', 'OPSWAP', 'OPPERP', 'OPYIELD', 'OPSTAKE'] },
     { chainName: 'Injective DeFi Hub', chainCode: 'inj', category: 'defi', tokenPrefixes: ['INJ', 'TALIS', 'DOJO', 'HELIX', 'MITO', 'HYDRO', 'NINJA', 'KIRA', 'QUANT', 'INJDEFI', 'INJSWAP', 'INJPERP', 'INJYIELD', 'INJSTAKE', 'INJVAULT', 'INJBOT'] },
@@ -532,7 +533,7 @@ export function generateFullLetsExchangeUniverse(): Coin[] {
     { chainName: 'Polkadot & Kusama', chainCode: 'dot', category: 'layer1', tokenPrefixes: ['DOT', 'KSM', 'ASTR', 'GLMR', 'MOVR', 'ACA', 'KAR', 'HDX', 'BNC', 'PHA', 'CLV', 'LIT', 'EFINITY', 'NODL', 'INTR', 'KILT', 'UNQ', 'SUB', 'POLK', 'DOTDEFI', 'DOTSTAKE'] },
     { chainName: 'Cardano Native Assets', chainCode: 'ada', category: 'layer1', tokenPrefixes: ['ADA', 'MIN', 'WMT', 'SNEK', 'LENFI', 'INDY', 'SUNDAE', 'VYFI', 'MILK', 'OPTIM', 'COPI', 'HOSKY', 'BANK', 'IAG', 'NTX', 'ADAPAY', 'ADASWAP', 'ADAYIELD', 'ADASTAKE'] },
     { chainName: 'Bitcoin Runes & BRC-20', chainCode: 'btc', category: 'brc20', tokenPrefixes: ['ORDI', 'SATS', 'RATS', 'MUBI', 'BSSB', 'ALEX', 'STX', 'PIZA', 'TRAC', 'CSAS', 'NALS', 'BIIS', 'RDEX', 'LEO', 'BTCS', 'PIPE', 'COOK', 'RSIC', 'DOG', 'SATOSHI', 'RUNESX', 'RUNESWAP'] },
-    { chainName: 'Web3 Gaming & Metaverse', chainCode: 'eth', category: 'gaming', isEVM: true, tokenPrefixes: ['SAND', 'MANA', 'GALA', 'IMX', 'BEAM', 'SUPER', 'YGG', 'PRIME', 'MAGIC', 'ILV', 'BIGTIME', 'PORTAL', 'XAI', 'MAVIA', 'SHRAP', 'NAKA', 'SIDUS', 'WILD', 'ALICE', 'TLM', 'GODS'] },
+    { chainName: 'Web3 Gaming & Metaverse', chainCode: 'eth', category: 'gaming', isEVM: true, tokenPrefixes: ['A8', 'LMWR', 'SAND', 'MANA', 'GALA', 'IMX', 'BEAM', 'SUPER', 'YGG', 'PRIME', 'MAGIC', 'ILV', 'BIGTIME', 'PORTAL', 'XAI', 'MAVIA', 'SHRAP', 'NAKA', 'SIDUS', 'WILD', 'ALICE', 'TLM', 'GODS'] },
     { chainName: 'Viral Memecoins & Doges', chainCode: 'sol', category: 'meme', isSol: true, tokenPrefixes: ['DOGE', 'SHIB', 'PEPE', 'WIF', 'BONK', 'FLOKI', 'MEME', 'POPCAT', 'BRETT', 'BOME', 'MOODENG', 'PNUT', 'FARTCOIN', 'TURBO', 'NEIRO', 'DEGEN', 'SLERF', 'MEW', 'COQ', 'WOJAK', 'PEPE2', 'SMURFCAT', 'CHUCK'] },
     { chainName: 'Privacy & Zero-Knowledge', chainCode: 'xmr', category: 'privacy', tokenPrefixes: ['XMR', 'ZEC', 'DASH', 'SCRT', 'MINA', 'ROSE', 'ZEN', 'BEAM', 'ARRR', 'FIRO', 'DUSK', 'NYM', 'OXT', 'RAIL', 'TORN', 'ZEPH', 'PRIVX', 'ZKSTAKE'] },
     { chainName: 'Hedera Hashgraph', chainCode: 'hbar', category: 'layer1', tokenPrefixes: ['HBAR', 'SAUCE', 'HELI', 'DOVU', 'JAM', 'KARMA', 'BSL', 'HEAD', 'HBARSWAP', 'HBARYIELD', 'HBARSTAKE', 'HBARPAY'] },

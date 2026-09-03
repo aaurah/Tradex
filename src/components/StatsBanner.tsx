@@ -39,7 +39,7 @@ interface ChainEquityData {
 
 export const StatsBanner: React.FC = () => {
   const [stats, setStats] = useState(apiService.getEscrowStats());
-  const { account, isConnected, openWalletModal, claimFaucet } = useWallet();
+  const { account, isConnected, openWalletModal, refreshBalance } = useWallet();
   const [positions, setPositions] = useState(perpService.getPositions());
   const [aiAgents, setAiAgents] = useState(perpService.getAIAgents());
   const [copyVaults, setCopyVaults] = useState(perpService.getCopyVaults());
@@ -294,11 +294,12 @@ export const StatsBanner: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={() => claimFaucet(5)}
+                onClick={() => refreshBalance()}
                 className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#181818] hover:bg-[#222] text-[#00FF41] border border-[#00FF41]/40 rounded-sm text-xs font-bold"
+                title="Sync on-chain live wallet balances"
               >
-                <Coins className="w-3.5 h-3.5" />
-                <span>Faucet +5 BSV</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Sync Balance</span>
               </button>
             )}
           </div>

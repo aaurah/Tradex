@@ -51,6 +51,7 @@ export const PerpTerminal: React.FC = () => {
   const [positions, setPositions] = useState<PerpPosition[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
+  const [layoutMode, setLayoutMode] = useState<'standard' | 'fullchart'>('standard');
 
   // Chart simulation bars
   const [chartBars, setChartBars] = useState<{ time: string; open: number; high: number; low: number; close: number; vol: number }[]>([]);
@@ -228,14 +229,36 @@ export const PerpTerminal: React.FC = () => {
               ${(selectedMarket.openInterestUsd / 1000000).toFixed(1)}M
             </div>
           </div>
+
+          {/* Chart Layout View Switcher */}
+          <div className="flex items-center space-x-1 bg-[#141414] p-1 rounded-lg border border-[#262626]">
+            <button
+              onClick={() => setLayoutMode('standard')}
+              className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition-all ${
+                layoutMode === 'standard' ? 'bg-[#222] text-[#00FF41]' : 'text-[#777] hover:text-white'
+              }`}
+              title="Split 3-Column Terminal"
+            >
+              Split View
+            </button>
+            <button
+              onClick={() => setLayoutMode('fullchart')}
+              className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition-all ${
+                layoutMode === 'fullchart' ? 'bg-[#222] text-[#00FF41]' : 'text-[#777] hover:text-white'
+              }`}
+              title="Full-Width Uninterrupted Chart"
+            >
+              Full Width Chart
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* MAIN 3-COLUMN TRADING GRID */}
+      {/* MAIN TRADING GRID (Dynamically switches between standard split and full-width chart mode) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         
-        {/* LEFT / CENTER: CHART & POSITIONS (7 COLS) */}
-        <div className="lg:col-span-7 space-y-3">
+        {/* CHART & POSITIONS */}
+        <div className={`${layoutMode === 'fullchart' ? 'lg:col-span-12' : 'lg:col-span-7'} space-y-3 min-w-0`}>
           
           {/* Advanced Interactive Candlestick & Technical Chart */}
           <AdvancedTradingChart
@@ -398,8 +421,8 @@ export const PerpTerminal: React.FC = () => {
 
         </div>
 
-        {/* MIDDLE: ORDERBOOK & RECENT TRADES (2.5 COLS) */}
-        <div className="lg:col-span-2 space-y-3">
+        {/* MIDDLE: ORDERBOOK & RECENT TRADES */}
+        <div className={`${layoutMode === 'fullchart' ? 'lg:col-span-5' : 'lg:col-span-2'} space-y-3`}>
           
           {/* ORDERBOOK */}
           <div className="rounded-sm bg-[#0A0A0A] border border-[#222] p-3">
@@ -471,8 +494,8 @@ export const PerpTerminal: React.FC = () => {
 
         </div>
 
-        {/* RIGHT: ORDER EXECUTION ENTRY PANEL (2.5 COLS) */}
-        <div className="lg:col-span-3 space-y-3">
+        {/* RIGHT: ORDER EXECUTION ENTRY PANEL */}
+        <div className={`${layoutMode === 'fullchart' ? 'lg:col-span-7' : 'lg:col-span-3'} space-y-3`}>
           
           <div className="rounded-sm bg-[#0A0A0A] border border-[#222] p-5 shadow-2xl space-y-4">
             

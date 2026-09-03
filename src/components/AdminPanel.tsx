@@ -81,23 +81,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onBackToExchang
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => adminAuthService.isAuthenticated());
   const [activeSubtab, setActiveSubtab] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-
-  // If not authenticated, render high-security login gate
-  if (!isAuthenticated) {
-    return (
-      <AdminLoginModal
-        onSuccess={() => setIsAuthenticated(true)}
-        onCancel={onClose}
-      />
-    );
-  }
-
-  const handleLogout = () => {
-    adminAuthService.logout();
-    setIsAuthenticated(false);
-  };
 
   // Accordion open/close state for menu categories
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
@@ -114,6 +98,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onBackToExchang
   const toggleCategory = (cat: string) => {
     setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
+
+  const handleLogout = () => {
+    adminAuthService.logout();
+    setIsAuthenticated(false);
+  };
+
+  // If not authenticated, render high-security login gate
+  if (!isAuthenticated) {
+    return (
+      <AdminLoginModal
+        onSuccess={() => setIsAuthenticated(true)}
+        onCancel={onClose}
+      />
+    );
+  }
 
   // Full menu structure matching the 3 screenshots
   const menuCategories: MenuCategory[] = [

@@ -3,6 +3,7 @@ import { P2POrder, P2PChatMessage } from '../types/dex';
 import { useWallet } from '../context/WalletContext';
 import { apiService } from '../services/apiService';
 import { formatBsv, formatSats } from '../services/bsvCrypto';
+import { TRADEX_ESCROW_CONTRACT_ADDRESS } from '../services/escrowTradingService';
 import confetti from 'canvas-confetti';
 import { 
   X, 
@@ -249,6 +250,10 @@ export const P2PTradeModal: React.FC<P2PTradeModalProps> = ({
                     <p className="text-[11px] text-[#888] mt-0.5 leading-relaxed font-sans">
                       Seller signs 2-of-2 multisig script depositing {tradeBsvAmount} BSV into decentralized escrow address.
                     </p>
+                    <div className="mt-1 flex items-center space-x-2 text-[10px] font-mono text-[#AAA]">
+                      <span>Contract:</span>
+                      <span className="text-[#00FF41]">{TRADEX_ESCROW_CONTRACT_ADDRESS.slice(0, 8)}...{TRADEX_ESCROW_CONTRACT_ADDRESS.slice(-6)}</span>
+                    </div>
                     {currentOrder.escrowTxId && (
                       <div className="mt-1 font-mono text-[10px] text-[#00FF41] flex items-center space-x-1">
                         <span>TxID: {currentOrder.escrowTxId}</span>

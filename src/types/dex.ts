@@ -17,6 +17,8 @@ export interface WalletAccount {
   balanceRon?: number;
   balanceSol?: number;
   balanceBtc?: number;
+  balanceUsdt?: number;
+  tokenBalances?: Record<string, number>;
   evmChainId?: number;
   evmChainName?: string;
   publicKey?: string;
@@ -169,15 +171,34 @@ export interface OnChainSettlementLog {
   id: string;
   txid: string;
   blockHeight: number;
-  type: 'P2P_ESCROW_LOCK' | 'P2P_SETTLEMENT_RELEASE' | 'CROSS_CHAIN_SWAP_SETTLE' | 'ESCROW_REFUND';
+  type: 
+    | 'P2P_ESCROW_LOCK' 
+    | 'P2P_SETTLEMENT_RELEASE' 
+    | 'CROSS_CHAIN_SWAP_SETTLE' 
+    | 'ESCROW_REFUND'
+    | 'ESCROW_DEPLOY'
+    | 'ESCROW_FUND_A'
+    | 'ESCROW_FUND_B'
+    | 'ESCROW_MILESTONE_RELEASE'
+    | 'ESCROW_SETTLED'
+    | 'ESCROW_DISPUTED';
   amountSats: number;
   feeSats: number;
   rawHex: string;
-  inputsCount: number;
-  outputsCount: number;
-  scriptType: '2-of-2 Multi-Sig Escrow' | 'P2PKH Standard Script' | 'Hash-Time-Locked Contract (HTLC)';
-  status: 'confirmed' | 'mempool';
+  inputsCount?: number;
+  outputsCount?: number;
+  scriptType: 
+    | '2-of-2 Multi-Sig Escrow' 
+    | 'P2PKH Standard Script' 
+    | 'Hash-Time-Locked Contract (HTLC)'
+    | '2-of-3 Oracle Multi-Sig'
+    | 'CLTV Timelock Escrow'
+    | 'Cross-Chain Atomic Hash Lock'
+    | 'Milestone Progressive Script';
+  status?: 'confirmed' | 'mempool';
   timestamp: number;
+  maker?: string;
+  taker?: string;
 }
 
 // OraDex / Perps & AI Agent Types
@@ -290,5 +311,82 @@ export interface CopyVault {
   isUserSubscribed?: boolean;
   userInvestedUsd?: number;
   chartData: { day: string; roi: number }[];
+}
+
+// Escrow Contract Trading Types
+export type EscrowContractType = 
+  | 'CROSS_ASSET_ATOMIC' 
+  | 'MILESTONE_TRANCHE' 
+  | 'TIMELOCKED_SAFEGUARD' 
+  | 'MULTI_SIG_ORACLE';
+
+export type EscrowContractStatus = 
+  | 'AWAITING_DEPOSIT' 
+  | 'PARTY_A_FUNDED' 
+  | 'DUAL_FUNDED' 
+  | 'IN_INSPECTION' 
+  | 'SETTLED' 
+  | 'REFUNDED' 
+  | 'DISPUTED';
+
+export interface EscrowMilestone {
+  id: string;
+  title: string;
+  percentage: number;
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'RELEASED';
+  txid?: string;
+}
+
+export interface EscrowContract {
+  id: string;
+  title: string;
+  type: EscrowContractType;
+  status: EscrowContractStatus;
+  creatorAddress: string;
+  creatorHandle?: string;
+  counterpartyAddress: string;
+  counterpartyHandle?: string;
+  arbitratorAddress?: string;
+  arbitratorName?: string;
+  
+  // Party A (Depositor / Seller)
+  depositAsset: string;
+  depositAmount: number;
+  depositNetwork: string;
+  depositAddress: string;
+  depositTxId?: string;
+  isPartyAFunded: boolean;
+
+  // Party B (Counterparty / Buyer)
+  targetAsset: string;
+  targetAmount: number;
+  targetNetwork: string;
+  targetAddress: string;
+  targetTxId?: string;
+  isPartyBFunded: boolean;
+
+  // Timing & Safeguards
+  createdAt: number;
+  expiresAt: number;
+  inspectionHours: number;
+  timelockBlocks: number;
+  
+  // Milestones (optional)
+  milestones?: EscrowMilestone[];
+
+  // On-Chain Script & Ledger details
+  scriptType: '2-of-2 Multi-Sig' | '2-of-3 Oracle Multi-Sig' | 'CLTV Timelock Escrow' | 'Cross-Chain Atomic Hash Lock';
+  scriptAsm: string;
+  scriptHash: string;
+  escrowContractAddress: string;
+  settlementTxId?: string;
+  feeSats: number;
+  securityCollateralUsd?: number;
+  
+  // Terms & dispute
+  terms: string;
+  disputeReason?: string;
+  oracleVerdict?: string;
 }
 

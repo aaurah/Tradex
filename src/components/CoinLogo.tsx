@@ -210,6 +210,30 @@ const CUSTOM_TOKEN_LOGOS: Record<string, React.ReactNode> = {
       </text>
     </svg>
   ),
+  LMWR: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <defs>
+        <linearGradient id="lmwr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#00EC82" />
+          <stop offset="100%" stopColor="#00A859" />
+        </linearGradient>
+      </defs>
+      <circle cx="16" cy="16" r="16" fill="#071E12" stroke="#00EC82" strokeWidth="1.2" />
+      <circle cx="16" cy="16" r="12" fill="url(#lmwr-grad)" />
+      <path
+        d="M16 7 C11 7 7 11 7 16 C7 21 11 25 16 25 C21 25 25 21 25 16 C25 11 21 7 16 7 Z"
+        fill="#042F1A"
+      />
+      <circle cx="16" cy="16" r="6.5" fill="#00EC82" />
+      <path
+        d="M16 10 L16 22 M10 16 L22 16 M11.8 11.8 L20.2 20.2 M11.8 20.2 L20.2 11.8"
+        stroke="#042F1A"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <circle cx="16" cy="16" r="2.2" fill="#FFFFFF" />
+    </svg>
+  ),
   APE: (
     <svg viewBox="0 0 32 32" className="w-full h-full">
       <circle cx="16" cy="16" r="16" fill="#0054FA" />
@@ -240,7 +264,121 @@ const CUSTOM_TOKEN_LOGOS: Record<string, React.ReactNode> = {
         Au
       </text>
     </svg>
+  ),
+  ADA: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#0033AD" />
+      <circle cx="16" cy="16" r="4" fill="#FFFFFF" />
+      <circle cx="16" cy="6" r="1.5" fill="#FFFFFF" />
+      <circle cx="16" cy="26" r="1.5" fill="#FFFFFF" />
+      <circle cx="6" cy="16" r="1.5" fill="#FFFFFF" />
+      <circle cx="26" cy="16" r="1.5" fill="#FFFFFF" />
+      <circle cx="9" cy="9" r="1.5" fill="#FFFFFF" />
+      <circle cx="23" cy="9" r="1.5" fill="#FFFFFF" />
+      <circle cx="9" cy="23" r="1.5" fill="#FFFFFF" />
+      <circle cx="23" cy="23" r="1.5" fill="#FFFFFF" />
+    </svg>
+  ),
+  NEAR: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#000000" />
+      <path
+        d="M9 22.5V9.5h3.2l7.2 9.8V9.5H23v13h-3.2L12.6 12.7v9.8H9z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  ),
+  ARB: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#28A0F0" />
+      <path
+        d="M16 6l7 14-2.5 5h-9L9 20l7-14zm0 5l-4 8h8l-4-8z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  ),
+  OP: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#FF0420" />
+      <circle cx="12" cy="16" r="5" fill="none" stroke="#FFFFFF" strokeWidth="2.5" />
+      <path d="M19 11h3.5a4 4 0 0 1 0 8H19v4h-2.5V11H19zm0 5.5h3a1.5 1.5 0 0 0 0-3H19v3z" fill="#FFFFFF" />
+    </svg>
+  ),
+  MATIC: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#8247E5" />
+      <path
+        d="M16 8l5 2.8v5.6L16 19.2l-5-2.8v-5.6L16 8zm6 9.5l4-2.2v-4.5l-4 2.2v4.5zm-12 0l-4-2.2v-4.5l4 2.2v4.5z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  ),
+  SHIB: (
+    <svg viewBox="0 0 32 32" className="w-full h-full">
+      <circle cx="16" cy="16" r="16" fill="#FFA409" />
+      <circle cx="16" cy="16" r="12" fill="#E84142" />
+      <polygon points="16,8 21,15 11,15" fill="#FFFFFF" />
+      <circle cx="13" cy="17" r="1.5" fill="#000000" />
+      <circle cx="19" cy="17" r="1.5" fill="#000000" />
+      <polygon points="16,19 14,21 18,21" fill="#000000" />
+    </svg>
   )
+};
+
+export interface OfficialCoinInfo {
+  symbol: string;
+  name: string;
+  network: string;
+  color: string;
+}
+
+export const OFFICIAL_COINS_GALLERY: OfficialCoinInfo[] = [
+  { symbol: 'BSV', name: 'Bitcoin SV', network: 'Teranode L1', color: '#EAB300' },
+  { symbol: 'BTC', name: 'Bitcoin', network: 'Bitcoin Mainnet', color: '#F7931A' },
+  { symbol: 'ETH', name: 'Ethereum', network: 'EVM Mainnet', color: '#627EEA' },
+  { symbol: 'SOL', name: 'Solana', network: 'Solana High-TPS', color: '#14F195' },
+  { symbol: 'ORAH', name: 'Tradex Protocol', network: 'BSV Native', color: '#00FF41' },
+  { symbol: 'AURA', name: 'Aura AI Intelligence', network: 'BSV Native', color: '#A855F7' },
+  { symbol: 'USDT', name: 'Tether USD', network: 'Multi-Chain', color: '#26A17B' },
+  { symbol: 'USDC', name: 'USD Coin', network: 'Multi-Chain', color: '#2775CA' },
+  { symbol: 'DOGE', name: 'Dogecoin', network: 'Dogecoin L1', color: '#C2A633' },
+  { symbol: 'PEPE', name: 'Pepe', network: 'Ethereum', color: '#4BAE4F' },
+  { symbol: 'SUI', name: 'Sui Network', network: 'Sui Mainnet', color: '#4CA2FF' },
+  { symbol: 'AVAX', name: 'Avalanche', network: 'Avalanche C-Chain', color: '#E84142' },
+  { symbol: 'A8', name: 'Ancient8', network: 'Base / Ronin (EVM)', color: '#FF3366' },
+  { symbol: 'LMWR', name: 'LimeWire', network: 'Ethereum / Base (ERC-20)', color: '#00EC82' },
+  { symbol: 'RON', name: 'Ronin Network', network: 'Ronin L1', color: '#1273EA' },
+  { symbol: 'LINK', name: 'Chainlink', network: 'Multi-Chain', color: '#375BD2' },
+  { symbol: 'BNB', name: 'Binance Coin', network: 'BNB Chain', color: '#F3BA2F' },
+  { symbol: 'XRP', name: 'Ripple', network: 'XRP Ledger', color: '#23292F' },
+  { symbol: 'TON', name: 'The Open Network', network: 'TON L1', color: '#0098EA' },
+  { symbol: 'ARB', name: 'Arbitrum', network: 'Arbitrum One', color: '#28A0F0' },
+  { symbol: 'OP', name: 'Optimism', network: 'OP Mainnet', color: '#FF0420' },
+  { symbol: 'MATIC', name: 'Polygon', network: 'Polygon PoS', color: '#8247E5' },
+  { symbol: 'PAXG', name: 'PAX Gold', network: 'Ethereum', color: '#D4AF37' }
+];
+
+export const getCustomCoinLogo = (symbol: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  const rawClean = (symbol || '').split('/')[0].split(' ')[0].split('-')[0].trim().toUpperCase();
+  const cleanSym = rawClean.replace(/[^A-Z0-9]/g, '') || 'COIN';
+  return localStorage.getItem(`custom_coin_logo_${cleanSym}`);
+};
+
+export const setCustomCoinLogo = (symbol: string, dataUrl: string) => {
+  if (typeof window === 'undefined') return;
+  const rawClean = (symbol || '').split('/')[0].split(' ')[0].split('-')[0].trim().toUpperCase();
+  const cleanSym = rawClean.replace(/[^A-Z0-9]/g, '') || 'COIN';
+  localStorage.setItem(`custom_coin_logo_${cleanSym}`, dataUrl);
+  window.dispatchEvent(new CustomEvent('coin_logo_updated', { detail: { symbol: cleanSym, logoUrl: dataUrl } }));
+};
+
+export const removeCustomCoinLogo = (symbol: string) => {
+  if (typeof window === 'undefined') return;
+  const rawClean = (symbol || '').split('/')[0].split(' ')[0].split('-')[0].trim().toUpperCase();
+  const cleanSym = rawClean.replace(/[^A-Z0-9]/g, '') || 'COIN';
+  localStorage.removeItem(`custom_coin_logo_${cleanSym}`);
+  window.dispatchEvent(new CustomEvent('coin_logo_updated', { detail: { symbol: cleanSym, logoUrl: null } }));
 };
 
 // Ecosystem & theme palettes for high-fidelity procedural generation
@@ -271,6 +409,20 @@ export const CoinLogo: React.FC<CoinLogoProps> = ({
   const rawClean = (symbol || '').split('/')[0].split(' ')[0].split('-')[0].trim().toUpperCase();
   const cleanSym = rawClean.replace(/[^A-Z0-9]/g, '') || 'COIN';
   const cleanLower = cleanSym.toLowerCase();
+
+  // Check if custom uploaded logo is stored in localStorage
+  const [customLogoState, setCustomLogoState] = useState<string | null>(() => getCustomCoinLogo(cleanSym));
+
+  useEffect(() => {
+    setCustomLogoState(getCustomCoinLogo(cleanSym));
+    const handleUpdate = (e: any) => {
+      if (e.detail?.symbol === cleanSym) {
+        setCustomLogoState(e.detail?.logoUrl);
+      }
+    };
+    window.addEventListener('coin_logo_updated', handleUpdate);
+    return () => window.removeEventListener('coin_logo_updated', handleUpdate);
+  }, [cleanSym]);
 
   // Reset error index on token change
   useEffect(() => {
@@ -307,6 +459,23 @@ export const CoinLogo: React.FC<CoinLogoProps> = ({
         textClass = 'text-base font-black';
         break;
     }
+  }
+
+  // 0. Check if user uploaded a custom logo for this token
+  if (customLogoState) {
+    return (
+      <div
+        className={`inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden bg-[#141414] border border-[#262626] shadow-sm ${className}`}
+        style={{ width: `${sizePx}px`, height: `${sizePx}px` }}
+        title={`${name || cleanSym} (Custom Uploaded Logo)`}
+      >
+        <img
+          src={customLogoState}
+          alt={cleanSym}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
   }
 
   // 1. Check if custom vector SVG is defined

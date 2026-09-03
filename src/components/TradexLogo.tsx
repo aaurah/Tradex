@@ -54,14 +54,14 @@ export const TradexLogo: React.FC<TradexLogoProps> = ({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Main Logo Text with Live Radar Pulse next to 'x' */}
+        {/* Main Logo Text with Live Radar Pulse next to 'DEX' */}
         <div className="flex items-center font-black tracking-tight text-white leading-none">
-          <span className={textSizeClass}>Trade</span>
+          <span className={textSizeClass}>Orah</span>
           <span className={`${textSizeClass} text-[#00FF41] group-hover:text-[#33FF66] transition-colors`}>
-            x
+            DEX
           </span>
 
-          {/* Live API Radar Pulse Indicator next to 'x' */}
+          {/* Live API Radar Pulse Indicator next to DEX */}
           <span
             onClick={(e) => {
               if (interactivePopover) {

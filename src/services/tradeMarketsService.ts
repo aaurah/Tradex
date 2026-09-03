@@ -131,34 +131,123 @@ class TradeMarketsService {
     this.allCoins = letsExchangeApiService.getCoins().length > 0
       ? letsExchangeApiService.getCoins()
       : buildLetsExchange22MMarketsCatalog();
+
+    // Ensure core ecosystem tokens and LetsExchange stars like LMWR and A8 are guaranteed present
+    const baseCatalog = buildLetsExchange22MMarketsCatalog();
+    const existingMap = new Map<string, Coin>();
+    this.allCoins.forEach(c => existingMap.set(c.symbol.toUpperCase(), c));
+    baseCatalog.forEach(c => {
+      if (!existingMap.has(c.symbol.toUpperCase())) {
+        this.allCoins.push(c);
+        existingMap.set(c.symbol.toUpperCase(), c);
+      }
+    });
+
     this.generateBasePairs();
+  }
+
+  public buildTradePairFromCoin(coin: Coin, quote: string = 'USDT'): TradePair {
+    const quotePrices: Record<string, number> = {
+      USDT: 1.0,
+      USDC: 1.0,
+      BSV: this.getCoinPrice('BSV', 48.60),
+      SOL: this.getCoinPrice('SOL', 148.50),
+      ETH: this.getCoinPrice('ETH', 2642.50),
+      BTC: this.getCoinPrice('BTC', 64250.00),
+      RON: this.getCoinPrice('RON', 1.85)
+    };
+
+    const quoteCoin = this.allCoins.find(c => c.symbol.toUpperCase() === quote.toUpperCase());
+    const quotePrice = quotePrices[quote.toUpperCase()] || quoteCoin?.priceUsd || 1.0;
+    const relativePrice = coin.priceUsd / quotePrice;
+
+    let priceFormatted = '';
+    if (relativePrice >= 1000) {
+      priceFormatted = relativePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else if (relativePrice >= 1) {
+      priceFormatted = relativePrice.toFixed(relativePrice < 10 ? 3 : 2);
+    } else if (relativePrice >= 0.0001) {
+      priceFormatted = relativePrice.toFixed(6);
+    } else {
+      priceFormatted = relativePrice.toFixed(8);
+    }
+
+    const change = coin.change24h ?? parseFloat(((Math.random() - 0.46) * 16).toFixed(2));
+    const highMultiplier = 1 + Math.abs(change) * 0.015 + 0.02;
+    const lowMultiplier = Math.max(0.0000001, 1 - Math.abs(change) * 0.015 - 0.02);
+
+    const volBaseNum = (coin.volume24hUsd || 1500000) / coin.priceUsd;
+    const volQuoteNum = (coin.volume24hUsd || 1500000) / quotePrice;
+
+    const formatVol = (val: number) => {
+      if (val >= 1000000000) return (val / 1000000000).toFixed(2) + 'B';
+      if (val >= 1000000) return (val / 1000000).toFixed(2) + 'M';
+      if (val >= 1000) return (val / 1000).toFixed(2) + 'K';
+      return val.toFixed(2);
+    };
+
+    const isBsvCategory = coin.isBSV || (coin.category === 'layer1' && coin.symbol === 'BSV') || coin.symbol === 'ORAH' || coin.symbol === 'AURA';
+    const isSolCategory = coin.isSolana || coin.category === 'solana';
+    const isEvmCategory = coin.isEVM || coin.category === 'evm';
+    const isRoninCategory = coin.isRonin || coin.category === 'ronin';
+
+    // Preserve the semantic functional category rather than replacing it with EVM
+    let categoryTag: string = (coin.category as string) || 'all';
+    if (isBsvCategory && categoryTag === 'all') categoryTag = 'bsv';
+
+    const newPair: TradePair = {
+      id: `${coin.symbol}_${coin.networkCode || coin.network || 'main'}_${quote}`,
+      symbol: `${coin.symbol}/${quote}`,
+      base: coin.symbol,
+      quote: quote,
+      baseName: coin.name,
+      icon: coin.icon,
+      network: coin.network,
+      networkCode: coin.networkCode || 'multi',
+      category: categoryTag,
+      price: relativePrice,
+      priceFormatted,
+      change24h: change,
+      high24h: relativePrice * highMultiplier,
+      low24h: relativePrice * lowMultiplier,
+      volBase: formatVol(volBaseNum),
+      volQuote: formatVol(volQuoteNum),
+      volumeUsd: coin.volume24hUsd || 5000000,
+      marketCapUsd: coin.marketCapUsd || 50000000,
+      spread: parseFloat((0.01 + Math.random() * 0.05).toFixed(3)),
+      isPopular: coin.popular || (coin.rank ? coin.rank <= 30 && quote === 'USDT' : false),
+      isBSV: isBsvCategory,
+      isSolana: isSolCategory,
+      isEVM: isEvmCategory,
+      isRonin: isRoninCategory
+    };
+
+    // Cache so subsequent queries find it instantly
+    const existingIdx = this.basePairsCache.findIndex(p => p.symbol === newPair.symbol);
+    if (existingIdx >= 0) {
+      this.basePairsCache[existingIdx] = newPair;
+    } else {
+      this.basePairsCache.unshift(newPair);
+    }
+
+    return newPair;
+  }
+
+  private getCoinPrice(sym: string, def: number): number {
+    const found = this.allCoins.find(c => c.symbol.toUpperCase() === sym.toUpperCase());
+    return found?.priceUsd || def;
   }
 
   private generateBasePairs() {
     const quotes = ['USDT', 'USDC', 'BSV', 'SOL', 'ETH', 'BTC', 'RON'];
     const stablecoins = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'BUSD', 'TUSD', 'USDD', 'PYUSD']);
     const pairs: TradePair[] = [];
-
-    // Find dynamic quote prices from catalog
-    const getCoinPrice = (sym: string, def: number) => {
-      const found = this.allCoins.find(c => c.symbol === sym);
-      return found?.priceUsd || def;
-    };
-
-    const quotePrices: Record<string, number> = {
-      USDT: 1.0,
-      USDC: 1.0,
-      BSV: getCoinPrice('BSV', 48.60),
-      SOL: getCoinPrice('SOL', 148.50),
-      ETH: getCoinPrice('ETH', 2642.50),
-      BTC: getCoinPrice('BTC', 64250.00),
-      RON: getCoinPrice('RON', 1.85)
-    };
+    const seenSymbols = new Set<string>();
 
     // Sort coins by market rank / ecosystem priority first
     const sortedCoins = [...this.allCoins].sort((a, b) => {
-      const isPriorityA = a.symbol === 'BSV' || a.symbol === 'ORAH' || a.symbol === 'AURA' || a.symbol === 'BTC' || a.symbol === 'ETH' || a.symbol === 'SOL' || a.symbol === 'RON';
-      const isPriorityB = b.symbol === 'BSV' || b.symbol === 'ORAH' || b.symbol === 'AURA' || b.symbol === 'BTC' || b.symbol === 'ETH' || b.symbol === 'SOL' || b.symbol === 'RON';
+      const isPriorityA = a.symbol === 'BSV' || a.symbol === 'ORAH' || a.symbol === 'AURA' || a.symbol === 'BTC' || a.symbol === 'ETH' || a.symbol === 'SOL' || a.symbol === 'RON' || a.symbol === 'A8' || a.symbol === 'LMWR';
+      const isPriorityB = b.symbol === 'BSV' || b.symbol === 'ORAH' || b.symbol === 'AURA' || b.symbol === 'BTC' || b.symbol === 'ETH' || b.symbol === 'SOL' || b.symbol === 'RON' || b.symbol === 'A8' || b.symbol === 'LMWR';
       if (isPriorityA && !isPriorityB) return -1;
       if (!isPriorityA && isPriorityB) return 1;
       return (a.rank || 999) - (b.rank || 999);
@@ -168,13 +257,27 @@ class TradeMarketsService {
       const isBaseStable = stablecoins.has(coin.symbol) || coin.symbol.startsWith('USDT_') || coin.symbol.startsWith('USDC_');
 
       quotes.forEach(quote => {
-        if (coin.symbol === quote) return;
+        if (coin.symbol.toUpperCase() === quote.toUpperCase()) return;
 
         // Prevent inverse stablecoin pairs (e.g. USDT/BTC, USDT/ETH, USDT/SOL)
         // If base is a stablecoin, only allow quote = USDT or USDC (e.g. USDC/USDT)
         if (isBaseStable && quote !== 'USDT' && quote !== 'USDC') {
           return;
         }
+
+        const pairKey = `${coin.symbol}/${quote}`.toUpperCase();
+        if (seenSymbols.has(pairKey)) return;
+        seenSymbols.add(pairKey);
+
+        const quotePrices: Record<string, number> = {
+          USDT: 1.0,
+          USDC: 1.0,
+          BSV: this.getCoinPrice('BSV', 48.60),
+          SOL: this.getCoinPrice('SOL', 148.50),
+          ETH: this.getCoinPrice('ETH', 2642.50),
+          BTC: this.getCoinPrice('BTC', 64250.00),
+          RON: this.getCoinPrice('RON', 1.85)
+        };
 
         const quotePrice = quotePrices[quote] || 1.0;
         const relativePrice = coin.priceUsd / quotePrice;
@@ -209,11 +312,8 @@ class TradeMarketsService {
         const isEvmCategory = coin.isEVM || coin.category === 'evm';
         const isRoninCategory = coin.isRonin || coin.category === 'ronin';
 
-        let categoryTag: string = (coin.category as string) || 'all';
-        if (isBsvCategory) categoryTag = 'bsv';
-        else if (isSolCategory) categoryTag = 'solana';
-        else if (isEvmCategory) categoryTag = 'evm';
-        else if (isRoninCategory) categoryTag = 'ronin';
+        // Keep authentic semantic category
+        const categoryTag: string = (coin.category as string) || (isBsvCategory ? 'bsv' : 'all');
 
         pairs.push({
           id: `${coin.symbol}_${coin.networkCode || coin.network || 'main'}_${quote}`,
@@ -235,11 +335,11 @@ class TradeMarketsService {
           volumeUsd: coin.volume24hUsd || 5000000,
           marketCapUsd: coin.marketCapUsd || 50000000,
           spread: parseFloat((0.01 + Math.random() * 0.05).toFixed(3)),
-          isPopular: coin.popular || (coin.rank ? coin.rank <= 25 && quote === 'USDT' : false),
-          isBSV: coin.isBSV,
-          isSolana: coin.isSolana,
-          isEVM: coin.isEVM,
-          isRonin: coin.isRonin
+          isPopular: coin.popular || (coin.rank ? coin.rank <= 30 && quote === 'USDT' : false),
+          isBSV: isBsvCategory,
+          isSolana: isSolCategory,
+          isEVM: isEvmCategory,
+          isRonin: isRoninCategory
         });
       });
     });
@@ -252,7 +352,7 @@ class TradeMarketsService {
   }
 
   public getPopularPairs(): TradePair[] {
-    return this.basePairsCache.filter(p => p.quote === 'USDT').slice(0, 12);
+    return this.basePairsCache.filter(p => p.quote === 'USDT').slice(0, 16);
   }
 
   public getTrendingMovers(): TradePair[] {
@@ -277,7 +377,7 @@ class TradeMarketsService {
 
     // Filter by Quote asset
     if (params.quote && params.quote !== 'ALL') {
-      filtered = filtered.filter(p => p.quote === params.quote);
+      filtered = filtered.filter(p => p.quote.toUpperCase() === params.quote!.toUpperCase());
     }
 
     // Filter by Category
@@ -286,21 +386,50 @@ class TradeMarketsService {
         const favSet = new Set(params.favorites || []);
         filtered = filtered.filter(p => favSet.has(p.symbol));
       } else if (params.category === 'gaming') {
-        filtered = filtered.filter(p => p.category === 'gaming' || p.isRonin || ['APE', 'A8', 'AXS', 'SLP', 'PIXEL', 'GALA', 'SAND', 'MANA', 'BEAM', 'IMX', 'SUPER', 'YGG', 'PRIME', 'NOT', 'HMSTR', 'CATI'].includes(p.base.toUpperCase()));
+        filtered = filtered.filter(p => 
+          p.category === 'gaming' || 
+          p.isRonin || 
+          ['A8', 'APE', 'AXS', 'SLP', 'PIXEL', 'GALA', 'SAND', 'MANA', 'BEAM', 'IMX', 'SUPER', 'YGG', 'PRIME', 'NOT', 'HMSTR', 'CATI', 'BLUR', 'MAGIC', 'ILV', 'BIGTIME', 'PORTAL', 'XAI', 'MAVIA'].includes(p.base.toUpperCase())
+        );
+      } else if (params.category === 'ai') {
+        filtered = filtered.filter(p => 
+          p.category === 'ai' || 
+          ['LMWR', 'AURA', 'TAO', 'FET', 'RENDER', 'NEAR', 'GRASS', 'IO', 'ATH', 'GOAT', 'ACT', 'AI', 'AGIX', 'OCEAN', 'WLD', 'ARKM', 'NOS'].includes(p.base.toUpperCase())
+        );
       } else if (params.category === 'bsv') {
         filtered = filtered.filter(p => p.isBSV || p.base === 'BSV' || p.base === 'ORAH' || p.base === 'AURA' || p.quote === 'BSV');
       } else if (params.category === 'solana') {
         filtered = filtered.filter(p => p.isSolana || p.category === 'solana' || p.quote === 'SOL');
       } else if (params.category === 'evm') {
-        filtered = filtered.filter(p => p.isEVM || p.category === 'evm' || p.quote === 'ETH');
+        filtered = filtered.filter(p => 
+          p.isEVM || 
+          p.category === 'evm' || 
+          p.quote === 'ETH' || 
+          ['LMWR', 'A8', 'ETH', 'ORAH', 'LINK', 'UNI', 'AAVE', 'MKR', 'PEPE', 'SHIB', 'CRV', 'LDO'].includes(p.base.toUpperCase())
+        );
       } else if (params.category === 'ronin') {
-        filtered = filtered.filter(p => p.isRonin || p.category === 'ronin' || p.quote === 'RON');
+        filtered = filtered.filter(p => 
+          p.isRonin || 
+          p.category === 'ronin' || 
+          p.quote === 'RON' || 
+          ['A8', 'RON', 'WRON', 'AXS', 'SLP', 'PIXEL', 'BERRY', 'BANANA'].includes(p.base.toUpperCase())
+        );
+      } else if (params.category === 'meme') {
+        filtered = filtered.filter(p => 
+          p.category === 'meme' || 
+          ['PEPE', 'DOGE', 'SHIB', 'BONK', 'WIF', 'POPCAT', 'FLOKI', 'MEME', 'BRETT', 'BOME', 'MOODENG', 'PNUT', 'FARTCOIN'].includes(p.base.toUpperCase())
+        );
+      } else if (params.category === 'defi') {
+        filtered = filtered.filter(p => 
+          p.category === 'defi' || 
+          ['ORAH', 'UNI', 'AAVE', 'MKR', 'CRV', 'LDO', 'COMP', 'SNX', 'CAKE', 'JUP', 'RAY', 'DRIFT', 'KMNO', 'ORCA'].includes(p.base.toUpperCase())
+        );
       } else {
         filtered = filtered.filter(p => p.category === params.category);
       }
     }
 
-    // Filter by text search query
+    // Filter by text search query across symbols, names, and networks
     if (params.query && params.query.trim()) {
       const q = params.query.trim().toLowerCase();
       filtered = filtered.filter(p => 
@@ -310,6 +439,28 @@ class TradeMarketsService {
         p.baseName.toLowerCase().includes(q) ||
         p.network.toLowerCase().includes(q)
       );
+
+      // Also dynamically check allCoins in the 22M+ universe for matching coins that may not have their pair in filtered yet!
+      const matchingCoins = this.allCoins.filter(c => 
+        c.symbol.toLowerCase() === q ||
+        c.symbol.toLowerCase().startsWith(q) ||
+        c.name.toLowerCase().includes(q) ||
+        c.network.toLowerCase().includes(q)
+      );
+
+      const existingSymbols = new Set(filtered.map(p => p.symbol.toUpperCase()));
+      const targetQuote = (params.quote && params.quote !== 'ALL') ? params.quote : 'USDT';
+
+      matchingCoins.forEach(coin => {
+        const pairSym = `${coin.symbol}/${targetQuote}`.toUpperCase();
+        if (!existingSymbols.has(pairSym)) {
+          const generatedPair = this.buildTradePairFromCoin(coin, targetQuote);
+          if (generatedPair) {
+            filtered.unshift(generatedPair);
+            existingSymbols.add(pairSym);
+          }
+        }
+      });
     }
 
     // Sorting
@@ -356,7 +507,57 @@ class TradeMarketsService {
   }
 
   public getPairBySymbol(symbol: string): TradePair | undefined {
-    return this.basePairsCache.find(p => p.symbol === symbol || p.symbol.replace('/', '') === symbol.replace('/', ''));
+    if (!symbol) return undefined;
+    const cleanSym = symbol.trim().toUpperCase();
+
+    // 1. Direct match in basePairsCache (exact or slashed/unslashed)
+    const direct = this.basePairsCache.find(p => 
+      p.symbol.toUpperCase() === cleanSym || 
+      p.symbol.replace('/', '').toUpperCase() === cleanSym.replace('/', '').replace('-', '').replace('_', '')
+    );
+    if (direct) return direct;
+
+    // 2. Parse base and quote parts
+    let base = cleanSym;
+    let quote = 'USDT';
+
+    if (cleanSym.includes('/')) {
+      const parts = cleanSym.split('/');
+      base = parts[0].trim();
+      quote = (parts[1] || 'USDT').trim();
+    } else if (cleanSym.includes('-')) {
+      const parts = cleanSym.split('-');
+      base = parts[0].trim();
+      quote = (parts[1] || 'USDT').trim();
+    } else if (cleanSym.includes('_')) {
+      const parts = cleanSym.split('_');
+      base = parts[0].trim();
+      quote = (parts[1] || 'USDT').trim();
+    } else {
+      // Check if ends with standard quotes (e.g. A8USDT, LMWRUSDT, LMWRBTC)
+      const commonQuotes = ['USDT', 'USDC', 'BSV', 'SOL', 'ETH', 'BTC', 'RON', 'DAI'];
+      for (const q of commonQuotes) {
+        if (cleanSym.endsWith(q) && cleanSym.length > q.length) {
+          base = cleanSym.slice(0, -q.length);
+          quote = q;
+          break;
+        }
+      }
+    }
+
+    // 3. Find base coin in allCoins or fallback catalog
+    const baseCoin = this.getCoinBySymbol(base) || buildLetsExchange22MMarketsCatalog().find(c => c.symbol.toUpperCase() === base);
+    if (baseCoin) {
+      return this.buildTradePairFromCoin(baseCoin, quote);
+    }
+
+    // 4. Try looser match (e.g. matching by name)
+    const fallbackCoin = this.allCoins.find(c => c.name.toUpperCase().includes(base) || c.symbol.toUpperCase().includes(base));
+    if (fallbackCoin) {
+      return this.buildTradePairFromCoin(fallbackCoin, quote);
+    }
+
+    return undefined;
   }
 
   public getAllCoins(): Coin[] {
@@ -393,11 +594,11 @@ class TradeMarketsService {
       } else if (params.category === 'evm') {
         filtered = filtered.filter(c => c.isEVM || c.category === 'evm' || c.networkCode === 'eth' || c.networkCode === 'base' || c.networkCode === 'arb');
       } else if (params.category === 'ronin') {
-        filtered = filtered.filter(c => c.isRonin || c.category === 'ronin' || c.networkCode === 'ron');
+        filtered = filtered.filter(c => c.isRonin || c.category === 'ronin' || c.networkCode === 'ron' || c.symbol.toUpperCase() === 'A8');
       } else if (params.category === 'gaming') {
-        filtered = filtered.filter(c => c.category === 'gaming' || c.isRonin || ['APE', 'A8', 'AXS', 'SLP', 'PIXEL', 'GALA', 'SAND', 'MANA', 'IMX', 'BEAM', 'SUPER', 'YGG', 'PRIME'].includes(c.symbol.toUpperCase()));
+        filtered = filtered.filter(c => c.category === 'gaming' || c.isRonin || ['A8', 'APE', 'AXS', 'SLP', 'PIXEL', 'GALA', 'SAND', 'MANA', 'IMX', 'BEAM', 'SUPER', 'YGG', 'PRIME'].includes(c.symbol.toUpperCase()));
       } else if (params.category === 'ai') {
-        filtered = filtered.filter(c => c.category === 'ai' || ['AURA', 'TAO', 'FET', 'RENDER', 'NEAR', 'GRASS', 'IO', 'ATH'].includes(c.symbol.toUpperCase()));
+        filtered = filtered.filter(c => c.category === 'ai' || ['LMWR', 'AURA', 'TAO', 'FET', 'RENDER', 'NEAR', 'GRASS', 'IO', 'ATH'].includes(c.symbol.toUpperCase()));
       } else if (params.category === 'meme') {
         filtered = filtered.filter(c => c.category === 'meme' || ['DOGE', 'SHIB', 'PEPE', 'WIF', 'BONK', 'FLOKI', 'MEME', 'POPCAT', 'BRETT', 'BOME'].includes(c.symbol.toUpperCase()));
       } else if (params.category === 'stable') {
@@ -451,6 +652,12 @@ class TradeMarketsService {
       coins: paginatedCoins,
       total
     };
+  }
+
+  public createCustomTradePair(baseSymbol: string, quoteSymbol: string = 'USDT'): TradePair | null {
+    const baseCoin = this.getCoinBySymbol(baseSymbol) || buildLetsExchange22MMarketsCatalog().find(c => c.symbol.toUpperCase() === baseSymbol.trim().toUpperCase());
+    if (!baseCoin) return null;
+    return this.buildTradePairFromCoin(baseCoin, quoteSymbol.trim().toUpperCase());
   }
 }
 

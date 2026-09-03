@@ -4,8 +4,8 @@ import { apiService, BASE_LETSEXCHANGE_COINS } from '../services/apiService';
 import { Coin, SwapOrder, CoinCategory } from '../types/dex';
 import { formatBsv, formatSats } from '../services/bsvCrypto';
 import { CoinLogo } from './CoinLogo';
+import { copyToClipboard } from '../utils/clipboard';
 import confetti from 'canvas-confetti';
-import { ZeroExSwapEngine } from './ZeroExSwapEngine';
 import { 
   ArrowDownUp, 
   RefreshCw, 
@@ -38,9 +38,6 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
   initialToCoin
 }) => {
   const { account, isConnected, openWalletModal, updateBalance } = useWallet();
-
-  // Engine selection: 'zero_ex' (0x Swap API v2 DEX Aggregator) vs 'cross_chain' (LetsExchange 22M+ & BSV)
-  const [engineMode, setEngineMode] = useState<'zero_ex' | 'cross_chain'>('zero_ex');
 
   const [coinsList, setCoinsList] = useState<Coin[]>(BASE_LETSEXCHANGE_COINS);
   const [apiSyncStatus, setApiSyncStatus] = useState({
@@ -208,9 +205,9 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
     }
   };
 
-  const copyDepositAddress = () => {
+  const copyDepositAddress = async () => {
     if (!activeSwap?.depositAddress) return;
-    navigator.clipboard.writeText(activeSwap.depositAddress);
+    await copyToClipboard(activeSwap.depositAddress);
     setCopiedDeposit(true);
     setTimeout(() => setCopiedDeposit(false), 2000);
   };
@@ -273,80 +270,38 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
   return (
     <div className="w-full max-w-2xl mx-auto py-8 px-4 font-mono">
       
-      {/* Top Protocol Engine Selector: 0x Swap API v2 vs Cross-Chain 22M+ */}
-      <div className="mb-4 p-1.5 rounded-sm bg-[#0C0C0C] border border-[#222] grid grid-cols-2 gap-1 text-xs">
-        <button
-          onClick={() => setEngineMode('zero_ex')}
-          className={`py-2.5 px-3 rounded-sm font-bold uppercase tracking-wider flex items-center justify-center space-x-2 transition-all ${
-            engineMode === 'zero_ex'
-              ? 'bg-[#00FF41] text-black font-black shadow-[0_0_15px_rgba(0,255,65,0.3)]'
-              : 'bg-transparent text-[#888] hover:text-white hover:bg-[#151515]'
-          }`}
-        >
-          <Zap className="w-4 h-4 fill-current" />
-          <span>0x Swap API v2 (EVM)</span>
-          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-            engineMode === 'zero_ex' ? 'bg-black/20 text-black' : 'bg-[#222] text-[#00FF41]'
-          }`}>
-            100+ DEXs
-          </span>
-        </button>
-
-        <button
-          onClick={() => setEngineMode('cross_chain')}
-          className={`py-2.5 px-3 rounded-sm font-bold uppercase tracking-wider flex items-center justify-center space-x-2 transition-all ${
-            engineMode === 'cross_chain'
-              ? 'bg-[#00FF41] text-black font-black shadow-[0_0_15px_rgba(0,255,65,0.3)]'
-              : 'bg-transparent text-[#888] hover:text-white hover:bg-[#151515]'
-          }`}
-        >
-          <Globe className="w-4 h-4" />
-          <span>Cross-Chain Bridge</span>
-          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-            engineMode === 'cross_chain' ? 'bg-black/20 text-black' : 'bg-[#222] text-[#AAA]'
-          }`}>
-            22M+ Pairs
-          </span>
-        </button>
-      </div>
-
-      {/* Render 0x Swap Engine */}
-      {engineMode === 'zero_ex' ? (
-        <ZeroExSwapEngine onGoToCrossChain={() => setEngineMode('cross_chain')} />
-      ) : (
-        <>
-          {/* LetsExchange Live API Sync & 22M+ Markets Ribbon */}
-          <div className="mb-3 p-3 rounded-sm bg-[#111] border border-[#222] flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs gap-2">
-            <div className="flex items-center space-x-2">
-              <div className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF41] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00FF41]"></span>
-              </div>
-              <div>
-                <div className="text-white text-xs font-bold flex items-center space-x-1.5">
-                  <span>LetsExchange 22M+ Omni-Market Engine</span>
-                  <span className="bg-[#00FF41]/20 text-[#00FF41] text-[10px] px-1.5 py-0.2 rounded border border-[#00FF41]/40 font-mono">
-                    22,094,700 Pairs
-                  </span>
-                </div>
-                <div className="text-[#777] text-[10px] font-mono mt-0.5">
-                  {coinsList.length} Native/Cross-Chain Assets Loaded • 50+ Blockchains Synced
-                </div>
-              </div>
+      {/* LetsExchange Live API Sync & 22M+ Markets Ribbon */}
+      <div className="mb-3 p-3 rounded-sm bg-[#111] border border-[#222] flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs gap-2">
+        <div className="flex items-center space-x-2">
+          <div className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF41] opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00FF41]"></span>
+          </div>
+          <div>
+            <div className="text-white text-xs font-bold flex items-center space-x-1.5">
+              <span>LetsExchange 22M+ Omni-Market Engine</span>
+              <span className="bg-[#00FF41]/20 text-[#00FF41] text-[10px] px-1.5 py-0.2 rounded border border-[#00FF41]/40 font-mono">
+                22,094,700 Pairs
+              </span>
             </div>
-
-            <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-              <button
-                onClick={() => handleSyncLetsExchangeApi(true)}
-                disabled={isSyncingLiveApi}
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] border border-[#333] text-[10px] text-white font-bold uppercase transition-all"
-                title="Re-fetch coin catalogue from LetsExchange API"
-              >
-                <RefreshCw className={`w-3 h-3 text-[#00FF41] ${isSyncingLiveApi ? 'animate-spin' : ''}`} />
-                <span>{isSyncingLiveApi ? 'Importing 22M+...' : 'Sync Catalog'}</span>
-              </button>
+            <div className="text-[#777] text-[10px] font-mono mt-0.5">
+              {coinsList.length} Native/Cross-Chain Assets Loaded • 50+ Blockchains Synced
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+          <button
+            onClick={() => handleSyncLetsExchangeApi(true)}
+            disabled={isSyncingLiveApi}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] border border-[#333] text-[10px] text-white font-bold uppercase transition-all"
+            title="Re-fetch coin catalogue from LetsExchange API"
+          >
+            <RefreshCw className={`w-3 h-3 text-[#00FF41] ${isSyncingLiveApi ? 'animate-spin' : ''}`} />
+            <span>{isSyncingLiveApi ? 'Importing 22M+...' : 'Sync Catalog'}</span>
+          </button>
+        </div>
+      </div>
 
       {/* Swap Card */}
       <div className="relative rounded-sm bg-[#0A0A0A] border border-[#222] shadow-2xl p-6 sm:p-8 text-[#E0E0E0]">
@@ -1121,9 +1076,6 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
             )}
           </div>
         </div>
-      )}
-
-        </>
       )}
 
     </div>

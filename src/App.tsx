@@ -16,6 +16,8 @@ import { WalletModal } from './components/WalletModal';
 import { Footer } from './components/Footer';
 import { LiveSupportWidget } from './components/LiveSupportWidget';
 import { AdminPanel } from './components/AdminPanel';
+import { WalletPortfolio } from './components/WalletPortfolio';
+import { SettingsView } from './components/SettingsView';
 import { Coin } from './types/dex';
 
 export default function App() {
@@ -33,21 +35,15 @@ export default function App() {
     setActiveTab('trade');
   };
 
-  // If in dedicated admin mode, show the full Admin suite
-  if (activeTab === 'admin') {
-    return (
-      <WalletProvider>
+  return (
+    <WalletProvider>
+      {activeTab === 'admin' ? (
         <AdminPanel 
           onClose={() => setActiveTab('exchange')} 
           onBackToExchange={() => setActiveTab('exchange')} 
         />
-      </WalletProvider>
-    );
-  }
-
-  return (
-    <WalletProvider>
-      <div className="min-h-screen bg-[#050505] text-[#E0E0E0] flex flex-col selection:bg-[#00FF41] selection:text-black">
+      ) : (
+        <div className="min-h-screen bg-[#050505] text-[#E0E0E0] flex flex-col selection:bg-[#00FF41] selection:text-black">
         
         {/* Navigation Header */}
         <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -90,6 +86,16 @@ export default function App() {
               onSelectPairForTrade={handleSelectPairForTrade}
             />
           )}
+          {activeTab === 'wallet' && (
+            <WalletPortfolio 
+              onNavigate={(tab) => setActiveTab(tab as NavTabType)}
+              onSelectCoinForSwap={handleSelectCoinForSwap}
+              onSelectPairForTrade={handleSelectPairForTrade}
+            />
+          )}
+          {activeTab === 'settings' && (
+            <SettingsView onNavigate={(tab) => setActiveTab(tab as NavTabType)} />
+          )}
         </main>
 
         {/* Floating Green Support & AI Assistant Bubble (from screenshots) */}
@@ -102,6 +108,7 @@ export default function App() {
         <Footer />
 
       </div>
+      )}
     </WalletProvider>
   );
 }

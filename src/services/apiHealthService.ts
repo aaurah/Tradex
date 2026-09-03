@@ -22,18 +22,8 @@ export interface ApiHealthState {
 
 const DEFAULT_SERVERS: ApiServerStatus[] = [
   {
-    id: 'zeroex_api',
-    name: '0x Protocol Swap API v2 Gateway',
-    category: 'dex',
-    url: 'https://api.0x.org/swap/v1/sources',
-    status: 'healthy',
-    latencyMs: 32,
-    lastChecked: Date.now(),
-    description: '100+ Multi-DEX EVM liquidity aggregation, Permit2 routing, and RFQ private market maker engine'
-  },
-  {
     id: 'letsexchange',
-    name: 'LetsExchange Routing Gateway',
+    name: 'LetsExchange Multi-Chain Routing Gateway',
     category: 'dex',
     url: 'https://api.letsexchange.io/api/v1/info',
     status: 'healthy',
