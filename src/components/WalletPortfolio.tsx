@@ -769,7 +769,10 @@ export const WalletPortfolio: React.FC<WalletPortfolioProps> = ({
                                 priceUsd: asset.priceUsd,
                                 change24h: asset.change24h,
                                 network: asset.network,
-                                volume24h: '1.2M'
+                                volume24hUsd: 1200000,
+                                minAmount: 1,
+                                maxAmount: 1000000,
+                                decimals: 8
                               });
                             } else {
                               onNavigate('swap');

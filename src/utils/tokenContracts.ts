@@ -84,11 +84,39 @@ export const VERIFIED_TOKEN_CONTRACTS: Record<string, { contractAddress: string;
   }
 };
 
+export const UNIFIED_CORE_CONTRACT = '0x4deb6023abD9E1C640aDa35201be8ff591d21cF2';
+
+export function getUnifiedContractExplorerUrl(networkId?: string): string {
+  switch (networkId) {
+    case 'eth-sepolia':
+      return `https://sepolia.etherscan.io/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'arbitrum-sepolia':
+      return `https://sepolia.arbiscan.io/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'op-sepolia':
+      return `https://sepolia-optimism.etherscan.io/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'polygon-amoy':
+      return `https://amoy.polygonscan.com/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'scroll-sepolia':
+      return `https://sepolia.scrollscan.com/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'eth-mainnet':
+      return `https://etherscan.io/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'arbitrum-one':
+      return `https://arbiscan.io/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'bsv-testnet':
+      return `https://test.whatsonchain.com/address/${UNIFIED_CORE_CONTRACT}`;
+    case 'bsv-mainnet':
+      return `https://whatsonchain.com/address/1TradexEscrowVaultP2SH_BSV_Utxo`;
+    case 'base-sepolia':
+    default:
+      return `https://sepolia.basescan.org/address/${UNIFIED_CORE_CONTRACT}`;
+  }
+}
+
 /**
  * Returns the verified contract or deterministic vault address for any symbol
  */
 export function getVerifiedTokenContract(symbol?: string): string {
-  if (!symbol) return '0x4deb6023abD9E1C640aDa35201be8ff591d21cF2';
+  if (!symbol) return UNIFIED_CORE_CONTRACT;
   const upper = symbol.toUpperCase();
   if (VERIFIED_TOKEN_CONTRACTS[upper]) {
     return VERIFIED_TOKEN_CONTRACTS[upper].contractAddress;

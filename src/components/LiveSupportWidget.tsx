@@ -38,7 +38,7 @@ export const LiveSupportWidget: React.FC = () => {
     setInputVal('');
 
     // Send to liveChatService so admin panel receives it immediately!
-    liveChatService.sendUserMessage(userText, account || undefined);
+    liveChatService.sendUserMessage(userText, account?.address || undefined);
 
     // If chat mode is AI or user asks general question, provide instant AI assistant answers as well
     if (chatMode === 'ai') {

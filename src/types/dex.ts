@@ -1,4 +1,4 @@
-export type WalletType = 'handcash' | 'relayx' | 'sensilet' | 'yours' | 'phantom' | 'custom_signer' | 'evm' | 'ronin' | 'passkey' | 'seed';
+export type WalletType = 'handcash' | 'relayx' | 'sensilet' | 'yours' | 'phantom' | 'custom_signer' | 'evm' | 'ronin' | 'passkey' | 'seed' | 'reown';
 
 export interface WalletAccount {
   type: WalletType;
@@ -66,6 +66,7 @@ export interface Coin {
   change24h?: number;
   marketCapUsd?: number;
   volume24hUsd?: number;
+  volume24h?: string;
   rank?: number;
   high24h?: number;
   low24h?: number;

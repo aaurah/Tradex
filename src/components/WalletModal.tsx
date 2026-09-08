@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useWallet } from '../context/WalletContext';
 import confetti from 'canvas-confetti';
 import { 
+  UNIFIED_TRADEX_CONTRACT, 
+  getUnifiedContractExplorerUrl, 
+  NetworkConfig 
+} from '../utils/supportedNetworks';
+import { 
   X, 
   Wallet, 
   Key, 
@@ -20,7 +25,8 @@ import {
   ExternalLink,
   AlertCircle,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Droplet
 } from 'lucide-react';
 
 interface InjectedDetection {
@@ -40,6 +46,7 @@ export const WalletModal: React.FC = () => {
     isModalOpen, 
     closeWalletModal, 
     connectInjectedEvm,
+    connectReown,
     connectRonin,
     connectSensilet,
     connectYours,
@@ -49,16 +56,22 @@ export const WalletModal: React.FC = () => {
     connectHandCash,
     connectionError,
     clearConnectionError,
-    isConnecting
+    isConnecting,
+    activeNetwork,
+    switchNetwork,
+    claimTestnetTokens,
+    allNetworks,
+    isTestnetActive
   } = useWallet();
 
   // Submodal views
-  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext'>('main');
+  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext' | 'networks_sub'>('main');
   const [missingWalletInfo, setMissingWalletInfo] = useState<{ name: string; icon: string; installUrl: string; desc: string } | null>(null);
   const [handcashHandle, setHandcashHandle] = useState('$orah_trader');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [searchEvm, setSearchEvm] = useState('');
   const [activeWalletAction, setActiveWalletAction] = useState<string | null>(null);
+  const [isClaimingFaucet, setIsClaimingFaucet] = useState(false);
 
   const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
 
@@ -335,6 +348,73 @@ export const WalletModal: React.FC = () => {
               </button>
             </div>
 
+            {/* Active Network & Sepolia Testnet Matrix Banner */}
+            <div className="p-3.5 rounded-xl bg-[#0F1410] border border-[#00FF41]/40 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <span className="text-xl">{activeNetwork.icon}</span>
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs font-bold text-white">{activeNetwork.name}</span>
+                      {activeNetwork.isTestnet && (
+                        <span className="px-1.5 py-0.2 text-[9px] font-mono font-black bg-[#00FF41]/20 text-[#00FF41] rounded border border-[#00FF41]/30 animate-pulse">
+                          SEPOLIA TESTNET
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-[#888] font-mono flex items-center space-x-1.5 mt-0.5">
+                      <span>Contract:</span>
+                      <a 
+                        href={getUnifiedContractExplorerUrl(activeNetwork.id)} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-[#00FF41] hover:underline flex items-center space-x-0.5"
+                        title="View verified contract on explorer"
+                      >
+                        <span>{UNIFIED_TRADEX_CONTRACT.slice(0, 6)}...{UNIFIED_TRADEX_CONTRACT.slice(-4)}</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setView('networks_sub')}
+                  className="px-2.5 py-1 rounded-lg bg-[#18221B] hover:bg-[#1F2D23] border border-[#00FF41]/40 text-[#00FF41] text-[10px] font-mono font-bold flex items-center space-x-1 transition-all"
+                >
+                  <span>Switch Network</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Instant Testnet Sandbox / Faucet */}
+              <div className="pt-2 border-t border-[#1B291E] flex items-center justify-between gap-2">
+                <div className="text-[10px] text-[#999] leading-tight">
+                  <span className="text-white font-bold">Sepolia Sandbox:</span> Trade everything on the same contract with zero real money risk.
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsClaimingFaucet(true);
+                    try {
+                      await claimTestnetTokens();
+                    } finally {
+                      setTimeout(() => {
+                        setIsClaimingFaucet(false);
+                        handleClose();
+                      }, 500);
+                    }
+                  }}
+                  disabled={isClaimingFaucet}
+                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-[11px] font-mono shadow-[0_0_12px_rgba(0,255,65,0.3)] active:scale-95 transition-all flex items-center space-x-1"
+                >
+                  <Droplet className="w-3 h-3 fill-black" />
+                  <span>{isClaimingFaucet ? 'Claiming...' : 'Claim Test Funds'}</span>
+                </button>
+              </div>
+            </div>
+
             {/* Quick Injected Providers Detection Pill */}
             {(detected.hasMetaMask || detected.hasRonin || detected.hasSensilet || detected.hasPhantom) && (
               <div className="p-2.5 rounded-xl bg-[#121814] border border-[#00FF41]/30 flex items-center justify-between">
@@ -362,6 +442,47 @@ export const WalletModal: React.FC = () => {
 
               <div className="space-y-1.5">
                 
+                {/* 0. Reown AppKit (https://reown.com) Universal Multi-Wallet */}
+                <div
+                  onClick={async () => {
+                    setActiveWalletAction('Reown');
+                    try {
+                      await connectReown();
+                    } finally {
+                      setActiveWalletAction(null);
+                    }
+                  }}
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-[#0F1C12] via-[#122417] to-[#0D1810] hover:from-[#14281A] hover:to-[#112015] border border-[#00FF41]/50 hover:border-[#00FF41] cursor-pointer transition-all group active:scale-[0.99] shadow-[0_0_20px_rgba(0,255,65,0.12)]"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#00FF41]/15 border border-[#00FF41]/40 flex items-center justify-center text-[#00FF41] group-hover:scale-105 transition-transform overflow-hidden p-1.5">
+                      {activeWalletAction === 'Reown' ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <span className="text-xl font-bold">🌐</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-black text-white group-hover:text-[#00FF41] transition-colors flex items-center space-x-1.5">
+                          <span>Reown AppKit</span>
+                          <span className="text-[10px] font-mono text-[#00FF41] font-bold">SDK</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[9px] font-mono font-black bg-[#00FF41] text-black shadow-sm">
+                          500+ WALLETS
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[#B0B0B0] leading-tight mt-0.5">
+                        WalletConnect QR • Rainbow • Coinbase • MetaMask • Email & Socials
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[11px] font-mono font-bold text-[#00FF41] group-hover:underline">Connect</span>
+                    <ChevronRight className="w-4 h-4 text-[#00FF41] group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
                 {/* 1. EVM Wallet (MetaMask, Rabby, Coinbase, etc.) */}
                 <div
                   onClick={() => setView('evm_sub')}
@@ -1044,6 +1165,175 @@ export const WalletModal: React.FC = () => {
 
             </div>
 
+          </div>
+        )}
+
+        {/* ================= VIEW 9: NETWORKS & SEPOLIA TESTNET MATRIX ================= */}
+        {view === 'networks_sub' && (
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto max-h-[80vh]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#1F1F1F]">
+              <button 
+                type="button" 
+                onClick={() => setView('main')} 
+                className="text-xs text-[#777] hover:text-white flex items-center space-x-1 font-mono"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </button>
+              <h3 className="text-base font-black text-white">Select Network & Environment</h3>
+              <button type="button" onClick={handleClose} className="text-[#777] hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Contract Banner */}
+            <div className="p-3 rounded-xl bg-[#121814] border border-[#00FF41]/30 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase font-mono tracking-wider text-[#777]">Unified Core Contract</div>
+                <div className="text-xs font-mono font-bold text-[#00FF41] mt-0.5">
+                  {UNIFIED_TRADEX_CONTRACT}
+                </div>
+                <div className="text-[10px] text-[#888] mt-0.5">
+                  All Sepolia networks test, trade and settle against this same contract
+                </div>
+              </div>
+              <a
+                href={getUnifiedContractExplorerUrl(activeNetwork.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-lg bg-[#1A251D] hover:bg-[#233528] border border-[#00FF41]/40 text-[#00FF41] text-xs font-mono flex items-center space-x-1 transition-all"
+                title="Open on Block Explorer"
+              >
+                <span>Explorer</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {/* Quick Faucet Claim */}
+            <div className="p-3 rounded-xl bg-[#141414] border border-[#222] flex items-center justify-between">
+              <div className="text-xs text-[#CCC]">
+                <span className="font-bold text-white">Need test funds?</span> Get 10,000 USDT + 0.50 ETH + 10 tBSV
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsClaimingFaucet(true);
+                  try {
+                    await claimTestnetTokens();
+                  } finally {
+                    setTimeout(() => setIsClaimingFaucet(false), 500);
+                  }
+                }}
+                disabled={isClaimingFaucet}
+                className="px-3 py-1.5 rounded-lg bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs font-mono flex items-center space-x-1.5 transition-all shadow-[0_0_12px_rgba(0,255,65,0.3)] active:scale-95"
+              >
+                <Droplet className="w-3.5 h-3.5 fill-black" />
+                <span>{isClaimingFaucet ? 'Claiming...' : 'Claim Faucet'}</span>
+              </button>
+            </div>
+
+            {/* SECTION 1: ALL SEPOLIA TESTNETS */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#00FF41] flex items-center justify-between">
+                <span>ALL SEPOLIA TESTNETS (TEST CONTRACT 0x4deb...21cF2)</span>
+                <span className="px-1.5 py-0.2 rounded bg-[#00FF41]/20 text-[#00FF41] text-[9px]">ZERO-RISK</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {allNetworks.filter(n => n.isTestnet).map(net => {
+                  const isActive = activeNetwork.id === net.id;
+                  return (
+                    <div
+                      key={net.id}
+                      onClick={async () => {
+                        await switchNetwork(net.id);
+                        confetti({ particleCount: 40, spread: 50 });
+                      }}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all text-left flex items-center justify-between ${
+                        isActive 
+                          ? 'bg-[#121c15] border-[#00FF41] shadow-[0_0_15px_rgba(0,255,65,0.2)]' 
+                          : 'bg-[#121212] hover:bg-[#181818] border-[#222]'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <span className="text-xl">{net.icon}</span>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-xs font-bold text-white">{net.shortName}</span>
+                            <span className="text-[9px] font-mono text-[#888]">ID: {net.chainId}</span>
+                          </div>
+                          <div className="text-[10px] text-[#777] font-mono truncate max-w-[140px]">
+                            {net.name}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isActive ? (
+                        <div className="flex items-center space-x-1 text-[#00FF41] text-xs font-mono font-bold">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>ACTIVE</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono text-[#555] hover:text-white">
+                          Select
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SECTION 2: PRODUCTION MAINNETS */}
+            <div className="space-y-2 pt-2 border-t border-[#1C1C1C]">
+              <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#777]">
+                PRODUCTION MAINNETS
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {allNetworks.filter(n => !n.isTestnet).map(net => {
+                  const isActive = activeNetwork.id === net.id;
+                  return (
+                    <div
+                      key={net.id}
+                      onClick={async () => {
+                        await switchNetwork(net.id);
+                      }}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all text-left flex items-center justify-between ${
+                        isActive 
+                          ? 'bg-[#121c15] border-[#00FF41]' 
+                          : 'bg-[#121212] hover:bg-[#181818] border-[#222]'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <span className="text-xl">{net.icon}</span>
+                        <div>
+                          <div className="text-xs font-bold text-white">{net.shortName}</div>
+                          <div className="text-[10px] text-[#777] font-mono">Chain {net.chainId}</div>
+                        </div>
+                      </div>
+
+                      {isActive ? (
+                        <div className="text-[#00FF41] text-xs font-mono font-bold flex items-center space-x-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>ACTIVE</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono text-[#555]">Select</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setView('main')}
+              className="w-full py-2.5 rounded-xl bg-[#1C1C1C] hover:bg-[#252525] text-white font-mono text-xs font-bold transition-all"
+            >
+              Done / Return to Wallets
+            </button>
           </div>
         )}
 

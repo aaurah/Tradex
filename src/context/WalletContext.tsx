@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { WalletAccount, WalletType } from '../types/dex';
 import { 
   generateBSVKeypair, 
@@ -10,10 +11,22 @@ import {
   deriveMultiChainKeypairFromEntropyHex,
   bsvToSats 
 } from '../services/bsvCrypto';
+import { 
+  SUPPORTED_NETWORKS, 
+  NetworkConfig, 
+  getNetworkByChainId, 
+  getNetworkById, 
+  UNIFIED_TRADEX_CONTRACT 
+} from '../utils/supportedNetworks';
+import { 
+  openReownModal, 
+  disconnectReown, 
+  subscribeReownAccount, 
+  getReownWalletProvider 
+} from '../services/reownService';
 
 declare global {
   interface Window {
-    ethereum?: any;
     ronin?: any;
     sensilet?: any;
     yours?: any;
@@ -36,13 +49,16 @@ interface WalletContextType {
   closeWalletModal: () => void;
   clearConnectionError: () => void;
   
+  // Reown AppKit Universal Multi-Wallet Connector
+  connectReown: () => Promise<void>;
+  
   // Real Authentic Connection Handlers
   connectInjectedEvm: (preferredWalletName?: string) => Promise<void>;
   connectRonin: () => Promise<void>;
   connectSensilet: () => Promise<void>;
   connectYours: () => Promise<void>;
   connectSolana: () => Promise<void>;
-  connectPasskey: (username?: string) => Promise<void>;
+  connectPasskey: (username?: string) => Promise<any>;
   connectSeedOrWif: (input: string) => Promise<void>;
   connectHandCash: (handle: string) => Promise<void>;
   connectWallet: (type: WalletType, customKeyOrAddress?: string, handle?: string) => Promise<void>;
@@ -52,6 +68,11 @@ interface WalletContextType {
   disconnectWallet: () => void;
   signMessage: (message: string) => Promise<{ signature: string; publicKey: string; address: string }>;
   switchEvmChain: (chainId: number) => Promise<void>;
+  switchNetwork: (networkIdOrChainId: string | number) => Promise<void>;
+  claimTestnetTokens: () => Promise<void>;
+  activeNetwork: NetworkConfig;
+  allNetworks: NetworkConfig[];
+  isTestnetActive: boolean;
   refreshBalance: () => Promise<void>;
   updateBalance: (deltaBsv: number) => void;
   getTokenBalance: (symbol: string) => number;
@@ -61,15 +82,24 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 const STORAGE_WALLET_KEY = 'bsv_dex_wallet_account_v3';
+const STORAGE_NETWORK_KEY = 'tradex_active_network_id_v2';
 
 const EVM_CHAIN_MAP: Record<string, string> = {
+  // Mainnets
   '0x1': 'Ethereum Mainnet',
-  '0x2105': 'Base',
+  '0x2105': 'Base Mainnet',
   '0xa4b1': 'Arbitrum One',
   '0xa': 'Optimism',
   '0x38': 'BNB Smart Chain',
   '0x89': 'Polygon PoS',
-  '0xa86a': 'Avalanche C-Chain'
+  '0xa86a': 'Avalanche C-Chain',
+  // All Sepolia Testnets
+  '0x14a34': 'Base Sepolia Testnet',
+  '0xaa36a7': 'Ethereum Sepolia Testnet',
+  '0x66eee': 'Arbitrum Sepolia Testnet',
+  '0xaa37dc': 'OP Sepolia Testnet',
+  '0x13882': 'Polygon Amoy (Sepolia)',
+  '0x8274f': 'Scroll Sepolia zkEVM'
 };
 
 export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -77,6 +107,20 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+
+  // Active Network State (Defaults to Base Sepolia Testnet for zero-risk testing)
+  const [activeNetwork, setActiveNetwork] = useState<NetworkConfig>(() => {
+    try {
+      const savedId = localStorage.getItem(STORAGE_NETWORK_KEY);
+      if (savedId) {
+        const found = getNetworkById(savedId);
+        if (found) return found;
+      }
+    } catch {
+      // ignore
+    }
+    return SUPPORTED_NETWORKS[0]; // Base Sepolia
+  });
 
   // Restore saved wallet session on reload if previously connected
   useEffect(() => {
@@ -100,7 +144,57 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Listen for EVM account and chain changes
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.ethereum) return;
+    // Reown AppKit Account listener
+    const unsubscribeReown = subscribeReownAccount((reownAcc: any) => {
+      if (reownAcc && reownAcc.isConnected && reownAcc.address) {
+        const addr = reownAcc.address;
+        const initialTokens: Record<string, number> = {
+          USDT: 2500,
+          ETH: 0.5,
+          BSV: 5.0,
+          ORAH: 2500,
+          PULSE: 10000,
+          SOL: 2.5,
+          BTC: 0.05
+        };
+
+        const newAcc: WalletAccount = {
+          type: 'reown',
+          chainType: 'evm',
+          address: addr,
+          evmAddress: addr,
+          multiChainEnabled: true,
+          walletName: 'Reown AppKit',
+          handle: `$${addr.slice(0, 6)}...${addr.slice(-4)}`,
+          balanceBsv: 5.0,
+          balanceSats: 500000000,
+          balanceEth: 0.5,
+          balanceUsdt: 2500,
+          balanceSol: 2.5,
+          balanceRon: 10,
+          balanceBtc: 0.05,
+          tokenBalances: initialTokens,
+          evmChainId: reownAcc.chainId || 84532,
+          evmChainName: 'Reown Connected Network',
+          isConnected: true
+        };
+
+        setAccount(newAcc);
+        try {
+          localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(newAcc));
+        } catch {
+          // ignore
+        }
+        closeWalletModal();
+        confetti({ particleCount: 50, spread: 60 });
+      }
+    });
+
+    if (typeof window === 'undefined' || !window.ethereum) {
+      return () => {
+        if (typeof unsubscribeReown === 'function') unsubscribeReown();
+      };
+    }
 
     const handleAccountsChanged = (accounts: string[]) => {
       if (!accounts || accounts.length === 0) {
@@ -118,9 +212,18 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     const handleChainChanged = (chainIdHex: string) => {
+      const chainIdInt = parseInt(chainIdHex, 16);
+      const chainName = EVM_CHAIN_MAP[chainIdHex] || `Chain ID ${chainIdInt}`;
+      const matchingNet = getNetworkByChainId(chainIdInt);
+      if (matchingNet) {
+        setActiveNetwork(matchingNet);
+        try {
+          localStorage.setItem(STORAGE_NETWORK_KEY, matchingNet.id);
+        } catch {
+          // ignore
+        }
+      }
       if (account && account.chainType === 'evm') {
-        const chainIdInt = parseInt(chainIdHex, 16);
-        const chainName = EVM_CHAIN_MAP[chainIdHex] || `Chain ID ${chainIdInt}`;
         const updated = {
           ...account,
           evmChainId: chainIdInt,
@@ -132,16 +235,16 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     try {
-      window.ethereum.on?.('accountsChanged', handleAccountsChanged);
-      window.ethereum.on?.('chainChanged', handleChainChanged);
+      (window as any).ethereum?.on?.('accountsChanged', handleAccountsChanged);
+      (window as any).ethereum?.on?.('chainChanged', handleChainChanged);
     } catch {
       // ignore
     }
 
     return () => {
       try {
-        window.ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener?.('chainChanged', handleChainChanged);
+        (window as any).ethereum?.removeListener?.('accountsChanged', handleAccountsChanged);
+        (window as any).ethereum?.removeListener?.('chainChanged', handleChainChanged);
       } catch {
         // ignore
       }
@@ -728,6 +831,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       await connectHandCash(handle || '$dex_trader');
       return;
     }
+    if (type === 'reown') {
+      await connectReown();
+      return;
+    }
 
     // Default keypair generation
     const kp = generateBSVKeypair();
@@ -771,7 +878,23 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     await connectInjectedEvm();
   };
 
+  const connectReown = async () => {
+    setIsConnecting(true);
+    setConnectionError(null);
+    try {
+      await openReownModal({ view: 'Connect' });
+    } catch (err: any) {
+      console.warn('Reown modal notice:', err);
+      setConnectionError(err?.message || 'Failed to open Reown AppKit');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const disconnectWallet = () => {
+    if (account?.type === 'reown') {
+      disconnectReown().catch(console.warn);
+    }
     setAccount(null);
     setConnectionError(null);
     localStorage.removeItem(STORAGE_WALLET_KEY);
@@ -784,12 +907,15 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!account) throw new Error('No wallet connected.');
 
     // EVM personal_sign
-    if (account.chainType === 'evm' && typeof window !== 'undefined' && window.ethereum) {
-      const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [message, account.address]
-      });
-      return { signature, publicKey: '0x...', address: account.address };
+    if ((account.chainType === 'evm' || account.type === 'reown') && typeof window !== 'undefined') {
+      const provider = getReownWalletProvider() || window.ethereum;
+      if (provider?.request) {
+        const signature = await provider.request({
+          method: 'personal_sign',
+          params: [message, account.address]
+        });
+        return { signature, publicKey: '0x...', address: account.address };
+      }
     }
 
     // Ronin personal_sign
@@ -831,19 +957,162 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   /**
-   * EVM Network Switcher
+   * Unified Network Switcher (Supports All Sepolia Testnets and Mainnets)
+   */
+  const switchNetwork = async (networkIdOrChainId: string | number) => {
+    let targetNet: NetworkConfig | undefined;
+    if (typeof networkIdOrChainId === 'number') {
+      targetNet = getNetworkByChainId(networkIdOrChainId);
+    } else {
+      targetNet = getNetworkById(networkIdOrChainId) || getNetworkByChainId(Number(networkIdOrChainId));
+    }
+
+    if (!targetNet) return;
+
+    setActiveNetwork(targetNet);
+    try {
+      localStorage.setItem(STORAGE_NETWORK_KEY, targetNet.id);
+    } catch {
+      // ignore
+    }
+
+    // If EVM provider is available and network is EVM, request switch or addition
+    if (targetNet.type === 'evm' && typeof window !== 'undefined' && (window as any).ethereum) {
+      try {
+        await (window as any).ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetNet.chainIdHex }]
+        });
+      } catch (switchError: any) {
+        // Error code 4902: chain has not been added to MetaMask / wallet
+        if (switchError?.code === 4902 || switchError?.data?.originalError?.code === 4902 || switchError?.message?.includes('unrecognized')) {
+          try {
+            await (window as any).ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: targetNet.chainIdHex,
+                chainName: targetNet.name,
+                rpcUrls: targetNet.rpcUrls,
+                blockExplorerUrls: targetNet.blockExplorerUrls,
+                nativeCurrency: targetNet.nativeCurrency
+              }]
+            });
+          } catch (addError) {
+            console.warn('Failed to add network to wallet:', addError);
+          }
+        } else {
+          console.warn('Switch chain rejected or failed:', switchError);
+        }
+      }
+    }
+
+    // Update active account metadata
+    if (account) {
+      const updated: WalletAccount = {
+        ...account,
+        evmChainId: targetNet.chainId,
+        evmChainName: targetNet.name
+      };
+      setAccount(updated);
+      try {
+        localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  /**
+   * Legacy and EVM Chain Switcher
    */
   const switchEvmChain = async (chainId: number) => {
-    if (typeof window === 'undefined' || !window.ethereum) return;
-    const hex = `0x${chainId.toString(16)}`;
+    await switchNetwork(chainId);
+  };
+
+  /**
+   * Instant Testnet Faucet & Testing Funds
+   * Credits testnet assets (USDT, ETH, BSV, ORAH, PULSE) on the active testnet
+   */
+  const claimTestnetTokens = async () => {
     try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: hex }]
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 }
       });
-    } catch (switchError: any) {
-      console.warn('Switch chain failed or rejected:', switchError);
+    } catch {
+      // ignore
     }
+
+    // If no account connected yet, auto-provision a ready-to-trade testnet account
+    let currentAcc = account;
+    if (!currentAcc) {
+      const testAddr = '0x71C86546371a3964f4ec8e8A484f29199d3e4e8B';
+      currentAcc = {
+        type: 'passkey',
+        chainType: 'evm',
+        address: testAddr,
+        evmAddress: testAddr,
+        solanaAddress: 'Devnet7x1111111111111111111111111111111111',
+        roninAddress: 'ronin:71C86546371a3964f4ec8e8A484f29199d3e4e8B',
+        multiChainEnabled: true,
+        walletName: `Tradex Testnet (${activeNetwork.shortName})`,
+        handle: '$sepolia_trader',
+        balanceBsv: 10.0,
+        balanceSats: 1000000000,
+        balanceUsdt: 10000,
+        balanceEth: 0.50,
+        balanceSol: 5.0,
+        balanceRon: 100,
+        balanceBtc: 0.15,
+        tokenBalances: {
+          USDT: 10000,
+          ETH: 0.50,
+          BSV: 10.0,
+          ORAH: 5000,
+          PULSE: 25000,
+          SOL: 5.0,
+          BTC: 0.15,
+          APE: 1000,
+          PEPE: 10000000,
+          LINK: 250
+        },
+        evmChainId: activeNetwork.chainId,
+        evmChainName: activeNetwork.name,
+        isConnected: true
+      };
+      setAccount(currentAcc);
+      localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(currentAcc));
+      return;
+    }
+
+    // If already connected, deposit testnet assets
+    const newUsdt = (currentAcc.balanceUsdt || 0) + 10000;
+    const newEth = parseFloat(((currentAcc.balanceEth || 0) + 0.50).toFixed(4));
+    const newBsv = parseFloat(((currentAcc.balanceBsv || 0) + 10.0).toFixed(4));
+    const newOrah = ((currentAcc.tokenBalances?.ORAH || 0) + 5000);
+    const newPulse = ((currentAcc.tokenBalances?.PULSE || 0) + 25000);
+
+    const updatedBalances = {
+      ...(currentAcc.tokenBalances || {}),
+      USDT: newUsdt,
+      ETH: newEth,
+      BSV: newBsv,
+      ORAH: newOrah,
+      PULSE: newPulse
+    };
+
+    const updatedAcc: WalletAccount = {
+      ...currentAcc,
+      balanceUsdt: newUsdt,
+      balanceEth: newEth,
+      balanceBsv: newBsv,
+      balanceSats: bsvToSats(newBsv),
+      tokenBalances: updatedBalances
+    };
+
+    setAccount(updatedAcc);
+    localStorage.setItem(STORAGE_WALLET_KEY, JSON.stringify(updatedAcc));
   };
 
   const getTokenBalance = useCallback((symbol: string): number => {
@@ -929,10 +1198,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // Check EVM balance
-    if ((account.chainType === 'evm' || account.evmAddress) && typeof window !== 'undefined' && window.ethereum) {
+    if ((account.chainType === 'evm' || account.evmAddress) && typeof window !== 'undefined' && (window as any).ethereum) {
       try {
         const addr = account.evmAddress || account.address;
-        const balanceHex = await window.ethereum.request({
+        const balanceHex = await (window as any).ethereum.request({
           method: 'eth_getBalance',
           params: [addr, 'latest']
         });
@@ -1003,6 +1272,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         closeWalletModal,
         clearConnectionError,
         connectInjectedEvm,
+        connectReown,
         connectRonin,
         connectSensilet,
         connectYours,
@@ -1015,6 +1285,11 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         disconnectWallet,
         signMessage,
         switchEvmChain,
+        switchNetwork,
+        claimTestnetTokens,
+        activeNetwork,
+        allNetworks: SUPPORTED_NETWORKS,
+        isTestnetActive: !!activeNetwork.isTestnet,
         refreshBalance,
         updateBalance,
         getTokenBalance,

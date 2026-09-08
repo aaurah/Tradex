@@ -176,7 +176,11 @@ export const PerpTerminal: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/30">
+                <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/30 flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
+                  <span>24/7 TRADING ACTIVE</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold bg-[#1A1A1A] text-[#AAA] border border-[#333]">
                   ON-CHAIN SETTLE
                 </span>
               </div>

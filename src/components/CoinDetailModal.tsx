@@ -34,7 +34,7 @@ interface CoinDetailModalProps {
   onToggleFavorite?: (symbol: string) => void;
 }
 
-type Timeframe = '1H' | '24H' | '1w' | '1m' | '1y' | '10yr' | 'All';
+type Timeframe = '1H' | '24H' | '7D' | '30D' | '1w' | '1m' | '1y' | '1Y' | '10yr' | 'All';
 
 export const CoinDetailModal: React.FC<CoinDetailModalProps> = ({
   coin,

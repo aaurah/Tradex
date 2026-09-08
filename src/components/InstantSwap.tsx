@@ -232,7 +232,7 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
     if (selectedCategory === 'solana') return c.isSolana || c.category === 'solana' || c.network.toLowerCase().includes('solana');
     if (selectedCategory === 'ronin') return c.isRonin || c.category === 'ronin' || c.network.toLowerCase().includes('ronin') || ['A8', 'AXS', 'SLP', 'PIXEL', 'RON', 'WRON', 'BANANA', 'BERRY'].includes(c.symbol.toUpperCase());
     if (selectedCategory === 'evm') return c.isEVM || c.category === 'evm' || c.network.toLowerCase().includes('erc-20') || c.network.toLowerCase().includes('bep-20') || c.network.toLowerCase().includes('base') || c.network.toLowerCase().includes('arbitrum');
-    if (selectedCategory === 'bsv') return c.isBSV || c.symbol === 'BSV' || c.category === 'bsv';
+    if ((selectedCategory as string) === 'bsv') return !!c.isBSV || c.symbol === 'BSV' || (c.category as string) === 'bsv';
     if (selectedCategory === 'layer1') return c.category === 'layer1';
     if (selectedCategory === 'stable') return c.category === 'stable' || c.symbol.startsWith('USD');
     if (selectedCategory === 'ai') return c.category === 'ai' || c.category === 'depin';
@@ -309,8 +309,12 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
         {/* Card Header */}
         <div className="flex items-center justify-between pb-6 border-b border-[#222] mb-6">
           <div>
-            <div className="text-[10px] font-mono text-[#00FF41] uppercase tracking-[0.25em] font-bold flex items-center space-x-1.5">
+            <div className="text-[10px] font-mono text-[#00FF41] uppercase tracking-[0.25em] font-bold flex items-center space-x-2">
               <span>LetsExchange.io API • On-Chain Settlement</span>
+              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/30 tracking-normal text-[9px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
+                <span>24/7 ACTIVE</span>
+              </span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase text-white mt-1">
               Cross-Chain Swap

@@ -153,7 +153,7 @@ export const StatsBanner: React.FC = () => {
     const ronTotal = ronSpotUsd + positionsPnlAndMargin.ronMargin + positionsPnlAndMargin.ronPnl;
     const vaultsTotal = Math.max(vaultsCapital + aiAgentCapital + aiAgentPnl, 500);
 
-    return [
+    const items: ChainEquityData[] = [
       {
         name: 'Bitcoin SV (BSV UTXO)',
         chainKey: 'bsv',
@@ -209,7 +209,8 @@ export const StatsBanner: React.FC = () => {
         nativeAsset: 'USDC/USD',
         nativeBalance: vaultsTotal
       }
-    ].filter(item => item.value > 0);
+    ];
+    return items.filter(item => item.value > 0);
   }, [
     bsvSpotUsd, 
     solSpotUsd, 

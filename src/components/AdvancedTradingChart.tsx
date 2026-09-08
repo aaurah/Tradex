@@ -657,7 +657,8 @@ export const AdvancedTradingChart: React.FC<AdvancedTradingChartProps> = ({
     setTimeout(() => setChartNotice(null), 3000);
   };
 
-  const lastCandle = displayCandles[displayCandles.length - 1] || {
+  const lastCandle: CandleData = displayCandles[displayCandles.length - 1] || {
+    timestamp: Date.now(),
     open: currentPrice,
     close: currentPrice,
     high: currentPrice,
@@ -666,7 +667,7 @@ export const AdvancedTradingChart: React.FC<AdvancedTradingChartProps> = ({
     time: '00:00'
   };
 
-  const activeHUDCandle = hoveredCandle || lastCandle;
+  const activeHUDCandle: CandleData = hoveredCandle || lastCandle;
   const isCandleUp = activeHUDCandle.close >= activeHUDCandle.open;
   const candleChangePct = ((activeHUDCandle.close - activeHUDCandle.open) / (activeHUDCandle.open || 1)) * 100;
 

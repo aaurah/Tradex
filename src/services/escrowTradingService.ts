@@ -670,12 +670,17 @@ class EscrowTradingService {
       auditors: ['OpenZeppelin Certified', 'CertiK Gold Shield 99.4/100', 'Quantstamp'],
       license: 'MIT Open-Source',
       networks: [
+        { name: 'Base Sepolia Testnet', chainId: 84532, explorerUrl: `https://sepolia.basescan.org/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Ethereum Sepolia Testnet', chainId: 11155111, explorerUrl: `https://sepolia.etherscan.io/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Arbitrum Sepolia Testnet', chainId: 421614, explorerUrl: `https://sepolia.arbiscan.io/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'OP Sepolia Testnet', chainId: 11155420, explorerUrl: `https://sepolia-optimism.etherscan.io/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Polygon Amoy Testnet', chainId: 80002, explorerUrl: `https://amoy.polygonscan.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Scroll Sepolia zkEVM', chainId: 534351, explorerUrl: `https://sepolia.scrollscan.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Base Mainnet', chainId: 8453, explorerUrl: `https://basescan.org/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
         { name: 'Ethereum Mainnet', chainId: 1, explorerUrl: `https://etherscan.io/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
-        { name: 'Base (Ethereum L2)', chainId: 8453, explorerUrl: `https://basescan.org/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
         { name: 'Arbitrum One', chainId: 42161, explorerUrl: `https://arbiscan.io/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
-        { name: 'Polygon PoS', chainId: 137, explorerUrl: `https://polygonscan.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
-        { name: 'BNB Smart Chain', chainId: 56, explorerUrl: `https://bscscan.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
-        { name: 'Ronin Katana L2', chainId: 2020, explorerUrl: `https://app.roninchain.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` }
+        { name: 'Bitcoin SV Testnet / STN', chainId: 99999, explorerUrl: `https://test.whatsonchain.com/address/${TRADEX_ESCROW_CONTRACT_ADDRESS}` },
+        { name: 'Solana Devnet', chainId: 101, explorerUrl: `https://solscan.io/account/${TRADEX_ESCROW_CONTRACT_ADDRESS}?cluster=devnet` }
       ],
       tvlUsd: 1845200,
       totalVolumeProcessedUsd: 48920150,

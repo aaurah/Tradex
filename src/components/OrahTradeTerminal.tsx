@@ -623,6 +623,10 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/30 hidden sm:inline">
                 {selectedPair.network}
               </span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00FF41]/15 text-[#00FF41] border border-[#00FF41]/40 flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
+                <span>24/7 LIVE</span>
+              </span>
               <ChevronDown className="w-3.5 h-3.5 text-[#555] group-hover:text-white" />
             </button>
 
