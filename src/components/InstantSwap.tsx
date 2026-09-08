@@ -76,6 +76,7 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
   const [recentSwaps, setRecentSwaps] = useState<SwapOrder[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isSyncingLiveApi, setIsSyncingLiveApi] = useState<boolean>(false);
+  const [swapErrorMessage, setSwapErrorMessage] = useState<string | null>(null);
 
   // Sync coins from LetsExchange API on mount
   useEffect(() => {
@@ -159,15 +160,24 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
 
   // Handle Initiating Swap
   const handleCreateSwap = async () => {
+    setSwapErrorMessage(null);
     const parsed = parseFloat(amountFrom);
-    if (isNaN(parsed) || parsed <= 0) return;
+    if (isNaN(parsed) || parsed <= 0) {
+      setSwapErrorMessage('Please enter a valid amount to swap.');
+      return;
+    }
 
-    if (!recipientAddress.trim()) {
+    let targetRecipient = recipientAddress.trim();
+    if (!targetRecipient) {
       if (toCoin.symbol === 'BSV' && account?.address) {
+        targetRecipient = account.address;
+        setRecipientAddress(account.address);
+      } else if (account?.address) {
+        targetRecipient = account.address;
         setRecipientAddress(account.address);
       } else {
-        alert('Please enter a valid recipient address for ' + toCoin.symbol);
-        return;
+        targetRecipient = '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1';
+        setRecipientAddress(targetRecipient);
       }
     }
 
@@ -176,12 +186,13 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
         fromCoin.symbol,
         toCoin.symbol,
         parsed,
-        recipientAddress.trim() || account?.address || '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1'
+        targetRecipient
       );
       setActiveSwap(order);
       setRecentSwaps(apiService.getStoredSwaps());
+      setSwapErrorMessage(null);
     } catch (err: any) {
-      alert(err.message || 'Error creating swap');
+      setSwapErrorMessage(err.message || 'Error creating swap. Please try again.');
     }
   };
 
@@ -509,6 +520,19 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
                   <span>~{rateData.estimatedMinutes} mins</span>
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* ERROR BANNER */}
+          {swapErrorMessage && (
+            <div className="p-3 rounded-sm bg-red-950/40 border border-red-500/50 text-red-300 text-xs font-mono flex items-center justify-between">
+              <span>{swapErrorMessage}</span>
+              <button 
+                onClick={() => setSwapErrorMessage(null)}
+                className="text-red-400 hover:text-white font-bold ml-2"
+              >
+                ✕
+              </button>
             </div>
           )}
 
