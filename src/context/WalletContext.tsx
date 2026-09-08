@@ -142,9 +142,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, []);
 
-  // Listen for EVM account and chain changes
+  // Dedicated Reown AppKit Account listener on mount
   useEffect(() => {
-    // Reown AppKit Account listener
     const unsubscribeReown = subscribeReownAccount((reownAcc: any) => {
       if (reownAcc && reownAcc.isConnected && reownAcc.address) {
         const addr = reownAcc.address;
@@ -189,10 +188,15 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     });
 
+    return () => {
+      if (typeof unsubscribeReown === 'function') unsubscribeReown();
+    };
+  }, []);
+
+  // Listen for EVM account and chain changes
+  useEffect(() => {
     if (typeof window === 'undefined' || !window.ethereum) {
-      return () => {
-        if (typeof unsubscribeReown === 'function') unsubscribeReown();
-      };
+      return;
     }
 
     const handleAccountsChanged = (accounts: string[]) => {

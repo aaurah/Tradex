@@ -72,87 +72,47 @@ export function savePopupTheme(accent: string, preset: 'auto' | 'amoled' | 'dark
   }
 }
 
-// Ensure all "UX by Reown" branding is completely hidden across shadow DOM & web components
-function setupBrandingScrubber() {
-  if (typeof window === 'undefined') return;
+// Ensure all "UX by Reown" branding is cleanly styled via non-destructive CSS rules
+function injectAntiBrandingStyles() {
+  if (typeof document === 'undefined') return;
+  const styleId = 'tradex-reown-branding-cleaner';
+  if (document.getElementById(styleId)) return;
 
-  // 1. Monkeypatch WuiUxByReown component if module loaded
-  import('@reown/appkit-ui/wui-ux-by-reown')
-    .then((mod: any) => {
-      if (mod?.WuiUxByReown?.prototype) {
-        mod.WuiUxByReown.prototype.render = () => null;
-        mod.WuiUxByReown.styles = [];
+  try {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      wui-ux-by-reown,
+      .branding-only,
+      [data-testid="ux-branding-reown"],
+      a[href*="reown.com"],
+      wui-icon[name="reown"],
+      w3m-legal-footer:has(wui-ux-by-reown:only-child) {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        width: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
       }
-    })
-    .catch(() => {});
-
-  // 2. Intercept attachShadow to inject strict CSS rules into every shadow root
-  if (!(window as any).__reownBrandingScrubberInstalled) {
-    (window as any).__reownBrandingScrubberInstalled = true;
-
-    const origAttachShadow = Element.prototype.attachShadow;
-    Element.prototype.attachShadow = function (init: ShadowRootInit) {
-      const shadow = origAttachShadow.call(this, init);
-      try {
-        const style = document.createElement('style');
-        style.setAttribute('data-tradex-anti-branding', 'true');
-        style.textContent = `
-          wui-ux-by-reown,
-          .branding-only,
-          [data-testid="ux-branding-reown"],
-          a[href*="reown.com"],
-          wui-icon[name="reown"],
-          .w3m-legal-footer:has(wui-ux-by-reown:only-child) {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            height: 0 !important;
-            width: 0 !important;
-            max-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            pointer-events: none !important;
-            overflow: hidden !important;
-          }
-        `;
-        shadow.appendChild(style);
-      } catch {
-        // ignore
+      w3m-modal, appkit-modal {
+        position: relative;
+        z-index: 999999 !important;
       }
-      return shadow;
-    };
-
-    // 3. Setup observer on document to strip any branding elements as they enter the DOM
-    try {
-      const observer = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          m.addedNodes.forEach((node: any) => {
-            if (node.nodeType === 1) {
-              if (node.tagName?.toLowerCase() === 'wui-ux-by-reown' || node.matches?.('wui-ux-by-reown, [data-testid="ux-branding-reown"]')) {
-                node.style.display = 'none';
-                node.remove?.();
-              }
-              const brandingItems = node.querySelectorAll?.('wui-ux-by-reown, .branding-only, [data-testid="ux-branding-reown"], a[href*="reown.com"]');
-              if (brandingItems && brandingItems.length > 0) {
-                brandingItems.forEach((el: any) => {
-                  el.style.display = 'none';
-                  el.remove?.();
-                });
-              }
-            }
-          });
-        }
-      });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-    } catch {
-      // ignore
-    }
+    `;
+    document.head.appendChild(style);
+  } catch {
+    // ignore
   }
 }
 
-// Initialize branding scrubber immediately
+// Inject anti-branding styling cleanly in browser environment
 if (typeof window !== 'undefined') {
-  setupBrandingScrubber();
+  injectAntiBrandingStyles();
 }
 
 let appKitInstance: any = null;
@@ -283,7 +243,7 @@ export function applyReownTheme(options?: ReownThemeOptions) {
 
 export function getOrInitReownAppKit() {
   if (typeof window === 'undefined') return null;
-  setupBrandingScrubber();
+  injectAntiBrandingStyles();
 
   if (!appKitInstance) {
     try {
@@ -292,6 +252,7 @@ export function getOrInitReownAppKit() {
       appKitInstance = createAppKit({
         adapters: [new EthersAdapter()],
         networks: [baseSepolia, sepolia, arbitrumSepolia, optimismSepolia, polygonAmoy, scrollSepolia, base, mainnet, arbitrum],
+        defaultNetwork: mainnet,
         metadata: reownMetadata,
         projectId: REOWN_PROJECT_ID,
         features: {
@@ -331,11 +292,26 @@ export function getOrInitReownAppKit() {
 export async function openReownModal(options?: { view?: 'Connect' | 'Account' | 'Networks' | 'WhatIsAWallet' | 'AllWallets' }): Promise<{ success: boolean; error?: string }> {
   try {
     const kit = getOrInitReownAppKit();
-    if (kit && typeof kit.open === 'function') {
-      await kit.open(options);
+    if (!kit) {
+      return { success: false, error: 'Reown AppKit is not initialized' };
+    }
+
+    let targetOptions = options;
+    try {
+      const currentAcc = kit.getAccount?.();
+      const isConnected = currentAcc?.isConnected || (typeof kit.getIsConnectedState === 'function' && kit.getIsConnectedState());
+      if (isConnected && options?.view === 'Connect') {
+        targetOptions = { view: 'Account' };
+      }
+    } catch {
+      // ignore
+    }
+
+    if (typeof kit.open === 'function') {
+      await kit.open(targetOptions);
       return { success: true };
     }
-    return { success: false, error: 'Reown AppKit is not initialized' };
+    return { success: false, error: 'Reown open function is not available' };
   } catch (e: any) {
     console.warn('Failed to open Reown modal:', e);
     return { success: false, error: e?.message || 'Failed to open Reown modal' };
@@ -404,10 +380,11 @@ export async function disconnectReown() {
 export function subscribeReownAccount(callback: (account: any) => void) {
   accountSubscribers.add(callback);
 
-  // If appKitInstance already exists, ensure subscription is active
-  if (appKitInstance && typeof appKitInstance.subscribeAccount === 'function' && !activeSubscriptionUnsub) {
+  // If appKitInstance already exists or can be obtained, ensure subscription is active
+  const kit = appKitInstance || getOrInitReownAppKit();
+  if (kit && typeof kit.subscribeAccount === 'function' && !activeSubscriptionUnsub) {
     try {
-      activeSubscriptionUnsub = appKitInstance.subscribeAccount((acc: any) => {
+      activeSubscriptionUnsub = kit.subscribeAccount((acc: any) => {
         accountSubscribers.forEach(cb => {
           try {
             cb(acc);
@@ -418,6 +395,18 @@ export function subscribeReownAccount(callback: (account: any) => void) {
       });
     } catch (e) {
       console.warn('Reown subscribeAccount error:', e);
+    }
+  }
+
+  // Immediately notify callback if an account is already connected
+  if (kit && typeof kit.getAccount === 'function') {
+    try {
+      const currentAcc = kit.getAccount();
+      if (currentAcc && currentAcc.isConnected && currentAcc.address) {
+        callback(currentAcc);
+      }
+    } catch {
+      // ignore
     }
   }
 

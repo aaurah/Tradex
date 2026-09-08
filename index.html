@@ -74,9 +74,6 @@
             }
           } catch (e) {
             console.warn('[Tradex] window.open blocked by sandbox:', e);
-            try {
-              window.location.href = url;
-            } catch (e2) {}
           }
           return null;
         };
