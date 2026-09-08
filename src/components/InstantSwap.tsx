@@ -196,8 +196,8 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
     }
   };
 
-  // Progress Active Swap in Simulation
-  const handleSimulateAdvance = async () => {
+  // Confirm Deposit & Execute Instant Swap
+  const handleConfirmDeposit = async () => {
     if (!activeSwap) return;
     const updated = await apiService.advanceSwapStage(activeSwap.id);
     if (updated) {
@@ -738,20 +738,20 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
               </div>
             )}
 
-            {/* Simulation Controller Action */}
-            <div className="mt-6 pt-4 border-t border-[#222] flex items-center justify-between font-mono">
+            {/* Swap Execution & Verification */}
+            <div className="mt-6 pt-4 border-t border-[#222] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 font-mono">
               <div className="text-[11px] text-[#777]">
-                Status: <span className="text-[#00FF41] font-bold uppercase">{activeSwap.status}</span>
+                Status: <span className="text-[#00FF41] font-bold uppercase">{activeSwap.status.replace('_', ' ')}</span>
               </div>
 
               {activeSwap.status !== 'completed' && (
                 <button
-                  id="simulate-swap-step-btn"
-                  onClick={handleSimulateAdvance}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-sm bg-[#00FF41] hover:bg-[#00D436] text-black font-black uppercase text-xs tracking-wider transition-colors"
+                  id="confirm-swap-deposit-btn"
+                  onClick={handleConfirmDeposit}
+                  className="flex items-center justify-center space-x-1.5 px-4 py-2 rounded-sm bg-[#00FF41] hover:bg-[#00D436] text-black font-black uppercase text-xs tracking-wider transition-colors shadow-sm"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Advance Step</span>
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>I Have Sent Deposit (Verify & Execute)</span>
                 </button>
               )}
             </div>

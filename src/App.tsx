@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WalletProvider } from './context/WalletContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar, NavTabType } from './components/Navbar';
 import { OrahDexLanding } from './components/OrahDexLanding';
 import { OrahTradeTerminal } from './components/OrahTradeTerminal';
@@ -21,7 +22,7 @@ import { SettingsView } from './components/SettingsView';
 import { Coin } from './types/dex';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<NavTabType>('exchange');
+  const [activeTab, setActiveTab] = useState<NavTabType>('trade');
   const [selectedSwapCoin, setSelectedSwapCoin] = useState<Coin | null>(null);
   const [selectedTradePairSymbol, setSelectedTradePairSymbol] = useState<string | null>(null);
 
@@ -36,79 +37,81 @@ export default function App() {
   };
 
   return (
-    <WalletProvider>
-      {activeTab === 'admin' ? (
-        <AdminPanel 
-          onClose={() => setActiveTab('exchange')} 
-          onBackToExchange={() => setActiveTab('exchange')} 
-        />
-      ) : (
-        <div className="min-h-screen bg-[#050505] text-[#E0E0E0] flex flex-col selection:bg-[#00FF41] selection:text-black">
-        
-        {/* Navigation Header */}
-        <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
-
-        {/* Main Content View Switcher */}
-        <main className="flex-1">
-          {activeTab === 'exchange' && (
-            <OrahDexLanding 
-              onEnterExchange={() => setActiveTab('trade')} 
-              onViewMarkets={() => setActiveTab('stats')}
-              onSelectPair={(symbol) => {
-                setSelectedTradePairSymbol(symbol);
-                setActiveTab('trade');
-              }}
-            />
-          )}
-
-          {activeTab === 'swap' && (
-            <InstantSwap 
-              initialFromCoin={selectedSwapCoin}
-            />
-          )}
+    <ErrorBoundary>
+      <WalletProvider>
+        {activeTab === 'admin' ? (
+          <AdminPanel 
+            onClose={() => setActiveTab('exchange')} 
+            onBackToExchange={() => setActiveTab('exchange')} 
+          />
+        ) : (
+          <div className="min-h-screen bg-[#050505] text-[#E0E0E0] flex flex-col selection:bg-[#00FF41] selection:text-black">
           
-          {activeTab === 'trade' && (
-            <OrahTradeTerminal 
-              initialPairSymbol={selectedTradePairSymbol}
-            />
-          )}
-          
-          {activeTab === 'perps' && <PerpTerminal />}
-          {activeTab === 'predict' && <PredictTerminal />}
-          {activeTab === 'ai_agents' && <AIAgentsTerminal />}
-          {activeTab === 'copy_vaults' && <CopyVaults />}
-          {activeTab === 'staking' && <OrahStaking onGoToSwap={() => setActiveTab('swap')} />}
-          {activeTab === 'p2p' && <P2PExchange />}
-          {activeTab === 'settlement' && <EscrowSettlementTerminal />}
-          {activeTab === 'stats' && (
-            <MarketsDashboard 
-              onSelectCoinForSwap={handleSelectCoinForSwap}
-              onSelectPairForTrade={handleSelectPairForTrade}
-            />
-          )}
-          {activeTab === 'wallet' && (
-            <WalletPortfolio 
-              onNavigate={(tab) => setActiveTab(tab as NavTabType)}
-              onSelectCoinForSwap={handleSelectCoinForSwap}
-              onSelectPairForTrade={handleSelectPairForTrade}
-            />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsView onNavigate={(tab) => setActiveTab(tab as NavTabType)} />
-          )}
-        </main>
+          {/* Navigation Header */}
+          <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Floating Green Support & AI Assistant Bubble (from screenshots) */}
-        <LiveSupportWidget />
+          {/* Main Content View Switcher */}
+          <main className="flex-1">
+            {activeTab === 'exchange' && (
+              <OrahDexLanding 
+                onEnterExchange={() => setActiveTab('trade')} 
+                onViewMarkets={() => setActiveTab('stats')}
+                onSelectPair={(symbol) => {
+                  setSelectedTradePairSymbol(symbol);
+                  setActiveTab('trade');
+                }}
+              />
+            )}
 
-        {/* Web3 Multi-Chain Connect Wallet Modal (IMG_0272 & IMG_0273) */}
-        <WalletModal />
+            {activeTab === 'swap' && (
+              <InstantSwap 
+                initialFromCoin={selectedSwapCoin}
+              />
+            )}
+            
+            {activeTab === 'trade' && (
+              <OrahTradeTerminal 
+                initialPairSymbol={selectedTradePairSymbol}
+              />
+            )}
+            
+            {activeTab === 'perps' && <PerpTerminal />}
+            {activeTab === 'predict' && <PredictTerminal />}
+            {activeTab === 'ai_agents' && <AIAgentsTerminal />}
+            {activeTab === 'copy_vaults' && <CopyVaults />}
+            {activeTab === 'staking' && <OrahStaking onGoToSwap={() => setActiveTab('swap')} />}
+            {activeTab === 'p2p' && <P2PExchange />}
+            {activeTab === 'settlement' && <EscrowSettlementTerminal />}
+            {activeTab === 'stats' && (
+              <MarketsDashboard 
+                onSelectCoinForSwap={handleSelectCoinForSwap}
+                onSelectPairForTrade={handleSelectPairForTrade}
+              />
+            )}
+            {activeTab === 'wallet' && (
+              <WalletPortfolio 
+                onNavigate={(tab) => setActiveTab(tab as NavTabType)}
+                onSelectCoinForSwap={handleSelectCoinForSwap}
+                onSelectPairForTrade={handleSelectPairForTrade}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsView onNavigate={(tab) => setActiveTab(tab as NavTabType)} />
+            )}
+          </main>
 
-        {/* Protocol Footer */}
-        <Footer />
+          {/* Floating Green Support & AI Assistant Bubble (from screenshots) */}
+          <LiveSupportWidget />
 
-      </div>
-      )}
-    </WalletProvider>
+          {/* Web3 Multi-Chain Connect Wallet Modal (IMG_0272 & IMG_0273) */}
+          <WalletModal />
+
+          {/* Protocol Footer */}
+          <Footer />
+
+        </div>
+        )}
+      </WalletProvider>
+    </ErrorBoundary>
   );
 }

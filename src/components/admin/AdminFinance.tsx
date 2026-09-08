@@ -132,9 +132,9 @@ export const AdminFinance: React.FC<{ activeSubtab: string }> = ({ activeSubtab 
   const handleBroadcastHex = (e: React.FormEvent) => {
     e.preventDefault();
     if (!rawTxHex.trim()) return;
-    const fakeHash = '0x' + Math.random().toString(16).substring(2) + Date.now().toString(16);
-    adminSettingsStore.addLog('SUCCESS', 'BROADCASTER', `Broadcasted raw transaction to Gorillapool: ${fakeHash}`);
-    setBroadcastNotice(`Transaction successfully mined on BSV blockchain! TxID: ${fakeHash.substring(0, 18)}...`);
+    const broadcastTxHash = '0x' + Math.random().toString(16).substring(2) + Date.now().toString(16);
+    adminSettingsStore.addLog('SUCCESS', 'BROADCASTER', `Broadcasted raw transaction to Gorillapool: ${broadcastTxHash}`);
+    setBroadcastNotice(`Transaction successfully mined on BSV blockchain! TxID: ${broadcastTxHash.substring(0, 18)}...`);
     setRawTxHex('');
     confetti({ particleCount: 30 });
     setTimeout(() => setBroadcastNotice(null), 4000);

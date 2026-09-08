@@ -485,24 +485,27 @@ export const AdvancedTradingChart: React.FC<AdvancedTradingChartProps> = ({
     });
   }, [symbol, timeframe, currentPrice]);
 
-  // Live real-time tick pulse simulation
+  // Live candle bar countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
-      setCandles(prev => {
-        if (!prev.length) return prev;
-        const last = { ...prev[prev.length - 1] };
-        const tick = (Math.random() - 0.48) * (last.close * 0.003);
-        last.close = Math.max(0.01, last.close + tick);
-        last.high = Math.max(last.high, last.close);
-        last.low = Math.min(last.low, last.close);
-        last.volume += Math.floor(Math.random() * 250);
-        return [...prev.slice(0, -1), last];
-      });
       setCountdown(c => (c <= 1 ? 60 : c - 1));
-    }, 1500);
+    }, 1000);
 
     return () => clearInterval(timer);
   }, []);
+
+  // Update latest candle to match real current market price
+  useEffect(() => {
+    if (!currentPrice) return;
+    setCandles(prev => {
+      if (!prev.length) return prev;
+      const last = { ...prev[prev.length - 1] };
+      last.close = currentPrice;
+      last.high = Math.max(last.high, currentPrice);
+      last.low = Math.min(last.low, currentPrice);
+      return [...prev.slice(0, -1), last];
+    });
+  }, [currentPrice]);
 
   // Calculate visible candles derived from zoomLevel and panOffset
   const displayCandles = useMemo(() => {

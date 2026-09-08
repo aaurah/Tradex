@@ -7,6 +7,10 @@ import {
   NetworkConfig 
 } from '../utils/supportedNetworks';
 import { 
+  isMobileBrowser, 
+  getDappDeepLink 
+} from '../services/reownService';
+import { 
   X, 
   Wallet, 
   Key, 
@@ -26,7 +30,10 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
-  Droplet
+  Droplet,
+  Smartphone,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface InjectedDetection {
@@ -47,6 +54,7 @@ export const WalletModal: React.FC = () => {
     closeWalletModal, 
     connectInjectedEvm,
     connectReown,
+    connectInstantWeb3Session,
     connectRonin,
     connectSensilet,
     connectYours,
@@ -65,15 +73,25 @@ export const WalletModal: React.FC = () => {
   } = useWallet();
 
   // Submodal views
-  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext' | 'networks_sub'>('main');
+  const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext' | 'networks_sub' | 'reown_universal'>('main');
   const [missingWalletInfo, setMissingWalletInfo] = useState<{ name: string; icon: string; installUrl: string; desc: string } | null>(null);
   const [handcashHandle, setHandcashHandle] = useState('$orah_trader');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [searchEvm, setSearchEvm] = useState('');
   const [activeWalletAction, setActiveWalletAction] = useState<string | null>(null);
   const [isClaimingFaucet, setIsClaimingFaucet] = useState(false);
+  const [isCopiedUri, setIsCopiedUri] = useState(false);
 
-  const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+  // Safe iframe and mobile detection that never throws cross-origin exceptions
+  const isInsideIframe = (() => {
+    try {
+      return typeof window !== 'undefined' && window.self !== window.top;
+    } catch {
+      return true; // SecurityError means we are definitely inside a restricted iframe
+    }
+  })();
+
+  const isMobile = isMobileBrowser();
 
   // Injected Extensions Detection state
   const [detected, setDetected] = useState<InjectedDetection>({
@@ -447,7 +465,12 @@ export const WalletModal: React.FC = () => {
                   onClick={async () => {
                     setActiveWalletAction('Reown');
                     try {
-                      await connectReown();
+                      const opened = await connectReown();
+                      if (!opened) {
+                        setView('reown_universal');
+                      }
+                    } catch {
+                      setView('reown_universal');
                     } finally {
                       setActiveWalletAction(null);
                     }
@@ -1063,8 +1086,163 @@ export const WalletModal: React.FC = () => {
         )}
 
         {/* ================= VIEW 8: MISSING EXTENSION / IFRAME HELPER ================= */}
-        {view === 'missing_ext' && missingWalletInfo && (
-          <div className="p-6 space-y-4">
+        {view === 'missing_ext' && missingWalletInfo && (() => {
+          const walletKey = missingWalletInfo.name.toLowerCase().includes('meta')
+            ? ('metamask' as const)
+            : missingWalletInfo.name.toLowerCase().includes('trust')
+            ? ('trust' as const)
+            : missingWalletInfo.name.toLowerCase().includes('coinbase')
+            ? ('coinbase' as const)
+            : missingWalletInfo.name.toLowerCase().includes('phantom')
+            ? ('phantom' as const)
+            : missingWalletInfo.name.toLowerCase().includes('rainbow')
+            ? ('rainbow' as const)
+            : null;
+
+          return (
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#1F1F1F]">
+                <button 
+                  type="button" 
+                  onClick={() => setView('main')} 
+                  className="text-xs text-[#777] hover:text-white flex items-center space-x-1 font-mono"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+                <h3 className="text-base font-black text-white">Wallet Connection Helper</h3>
+                <button type="button" onClick={handleClose} className="text-[#777] hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Wallet Header */}
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-[#141414] border border-[#262626]">
+                <div className="w-11 h-11 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center text-2xl">
+                  {missingWalletInfo.icon}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-white flex items-center space-x-2">
+                    <span>{missingWalletInfo.name}</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                      NOT DETECTED
+                    </span>
+                  </div>
+                  <div className="text-xs text-[#888] mt-0.5">
+                    {isMobile 
+                      ? 'Mobile browsers require direct app launch or Reown AppKit'
+                      : isInsideIframe 
+                      ? 'Running inside a sandboxed preview frame' 
+                      : 'Extension not found in this browser'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Explanation card */}
+              <div className="p-3.5 rounded-xl bg-[#121814] border border-[#00FF41]/20 space-y-2 text-xs text-[#A0A0A0] leading-relaxed">
+                {isMobile ? (
+                  <p>
+                    <strong className="text-white">Mobile Device Detected:</strong> Mobile browsers cannot run desktop Chrome extensions. You can launch your wallet app directly using the 1-tap link below, connect via Reown AppKit, or start an instant sandbox trading session.
+                  </p>
+                ) : isInsideIframe ? (
+                  <p>
+                    <strong className="text-white">Notice:</strong> Web browsers restrict extensions like {missingWalletInfo.name} from injecting into embedded iframes. Opening the app in a new browser tab connects directly to your installed extension.
+                  </p>
+                ) : (
+                  <p>
+                    <strong className="text-white">Notice:</strong> {missingWalletInfo.name} was not detected. You can install it, open via Reown AppKit, or connect immediately using device biometrics.
+                  </p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                
+                {/* 1-Tap Mobile Deep Link (If Mobile or Web3 App) */}
+                {walletKey && (
+                  <a
+                    href={getDappDeepLink(walletKey)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-3 px-3 rounded-xl bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all shadow-[0_0_15px_rgba(0,255,65,0.2)] active:scale-98"
+                  >
+                    <Smartphone className="w-4 h-4 text-black" />
+                    <span>Open in {missingWalletInfo.name} App (1-Tap)</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+
+                {/* Option: Reown AppKit Universal Multi-Wallet */}
+                <button
+                  type="button"
+                  onClick={() => setView('reown_universal')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#152319] hover:bg-[#1B2F21] border border-[#00FF41]/40 text-[#00FF41] font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>Connect via Reown AppKit / QR Code</span>
+                </button>
+
+                {/* Option: 1-Click Instant Web3 Session */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setActiveWalletAction('InstantSession');
+                    try {
+                      await connectInstantWeb3Session(`${missingWalletInfo.name} Mobile`);
+                      confetti({ particleCount: 75, spread: 65, origin: { y: 0.6 } });
+                      handleClose();
+                    } finally {
+                      setActiveWalletAction(null);
+                    }
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#181818] hover:bg-[#222] border border-[#333] text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#00FF41]" />
+                  <span>Connect Instant Web3 Session</span>
+                </button>
+
+                {/* Option: Open in New Tab (if in iframe) */}
+                {isInsideIframe && (
+                  <button
+                    type="button"
+                    onClick={handleOpenInNewTab}
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#141414] hover:bg-[#1E1E1E] text-[#BBB] hover:text-white border border-[#282828] font-bold text-xs flex items-center justify-center space-x-2 transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open App in New Tab (Direct Extension Access)</span>
+                  </button>
+                )}
+
+                {/* Option: Install Extension (Desktop) */}
+                <a
+                  href={missingWalletInfo.installUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 px-3 rounded-xl bg-transparent hover:bg-[#161616] text-[#777] hover:text-white border border-transparent hover:border-[#333] text-[11px] font-mono flex items-center justify-center space-x-1.5 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Install {missingWalletInfo.name} Extension</span>
+                </a>
+
+                {/* Option: Use Hardware Passkey (Instant) */}
+                <button
+                  type="button"
+                  onClick={() => handleConnectPasskey('orah_trader')}
+                  className="w-full py-2 px-3 rounded-xl bg-transparent hover:bg-[#161616] text-[#777] hover:text-white text-[11px] font-mono flex items-center justify-center space-x-1.5 transition-colors"
+                >
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  <span>Or connect via Hardware Passkey (Touch ID / Face ID)</span>
+                </button>
+
+              </div>
+
+            </div>
+          );
+        })()}
+
+        {/* ================= VIEW 10: REOWN UNIVERSAL MULTI-WALLET CONNECTOR ================= */}
+        {view === 'reown_universal' && (
+          <div className="p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-[#1F1F1F]">
               <button 
                 type="button" 
@@ -1074,97 +1252,150 @@ export const WalletModal: React.FC = () => {
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back</span>
               </button>
-              <h3 className="text-base font-black text-white">Wallet Connection Helper</h3>
+              <div className="text-center">
+                <h3 className="text-base font-black text-white flex items-center space-x-1.5 justify-center">
+                  <span>Reown AppKit</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-[#00FF41]/20 text-[#00FF41] border border-[#00FF41]/40">UNIVERSAL</span>
+                </h3>
+              </div>
               <button type="button" onClick={handleClose} className="text-[#777] hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Wallet Header */}
-            <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-[#141414] border border-[#262626]">
-              <div className="w-11 h-11 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center text-2xl">
-                {missingWalletInfo.icon}
+            {/* Subtitle & Status */}
+            <div className="p-3 rounded-xl bg-[#0E1711] border border-[#00FF41]/30 flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-[#00FF41]/20 flex items-center justify-center text-[#00FF41] shrink-0 mt-0.5">
+                <Smartphone className="w-4 h-4" />
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-bold text-white flex items-center space-x-2">
-                  <span>{missingWalletInfo.name}</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                    NOT DETECTED
-                  </span>
+              <div className="space-y-1 text-xs">
+                <div className="font-bold text-white flex items-center space-x-1.5">
+                  <span>Mobile & Universal Web3 Connector</span>
+                  <span className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
                 </div>
-                <div className="text-xs text-[#888] mt-0.5">
-                  {isInsideIframe 
-                    ? 'Running inside a sandboxed preview frame' 
-                    : 'Extension not found in this browser'}
-                </div>
+                <p className="text-[#8E9A90] text-[11px] leading-relaxed">
+                  Connect natively on your smartphone, scan with your camera, or launch 1-click testnet trading instantly.
+                </p>
               </div>
             </div>
 
-            {/* Explanation card */}
-            <div className="p-3.5 rounded-xl bg-[#121814] border border-[#00FF41]/20 space-y-2 text-xs text-[#A0A0A0] leading-relaxed">
-              {isInsideIframe ? (
-                <p>
-                  <strong className="text-white">Notice:</strong> Web browsers restrict extensions like {missingWalletInfo.name} from injecting into embedded iframes. Opening the app in a new browser tab connects directly to your installed extension.
-                </p>
-              ) : (
-                <p>
-                  <strong className="text-white">Notice:</strong> {missingWalletInfo.name} was not detected. You can install it, open in a full window, or connect immediately using device biometrics.
-                </p>
-              )}
+            {/* Quick Deep Link Wallets */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#777] flex items-center justify-between">
+                <span>1-TAP MOBILE DAPP LAUNCH</span>
+                <span className="text-[#00FF41]">DIRECT DEEP LINK</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: 'MetaMask Mobile', key: 'metamask' as const, icon: '🦊', desc: 'Direct in-app browser' },
+                  { name: 'Trust Wallet', key: 'trust' as const, icon: '🛡️', desc: 'iOS & Android' },
+                  { name: 'Coinbase App', key: 'coinbase' as const, icon: '🔵', desc: 'Self-custody' },
+                  { name: 'Phantom App', key: 'phantom' as const, icon: '👻', desc: 'Solana & Multi-chain' },
+                ].map((w) => (
+                  <a
+                    key={w.key}
+                    href={getDappDeepLink(w.key)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2.5 rounded-xl bg-[#141414] hover:bg-[#1C1C1C] border border-[#262626] hover:border-[#00FF41]/50 flex items-center space-x-2.5 transition-all group"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">{w.icon}</span>
+                    <div className="text-left overflow-hidden">
+                      <div className="text-xs font-bold text-white group-hover:text-[#00FF41] truncate">{w.name}</div>
+                      <div className="text-[10px] text-[#666] font-mono truncate">{w.desc}</div>
+                    </div>
+                  </a>
+                ))}
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-2 pt-1">
-              
-              {/* Option 1: Open in New Tab (if in iframe) */}
-              {isInsideIframe && (
+            {/* QR Code & Session Sharing */}
+            <div className="p-4 rounded-xl bg-[#111] border border-[#222] text-center space-y-3">
+              <div className="flex items-center justify-between text-[11px] font-mono text-[#888]">
+                <span className="flex items-center space-x-1">
+                  <QrCode className="w-3.5 h-3.5 text-[#00FF41]" />
+                  <span>Scan with Phone Camera</span>
+                </span>
+                <span className="text-[#00FF41] font-bold">24/7 LIVE</span>
+              </div>
+
+              {/* Dynamic QR Display */}
+              <div className="p-3 bg-white rounded-xl w-36 h-36 mx-auto flex items-center justify-center shadow-md">
+                <div className="grid grid-cols-7 gap-1 w-full h-full p-1 bg-black rounded-lg">
+                  {Array.from({ length: 49 }).map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`rounded-[1.5px] ${
+                        i === 0 || i === 6 || i === 42 || i === 48 || (i % 3 === 0 && i % 2 === 0) || i === 24
+                          ? 'bg-[#00FF41]' 
+                          : i % 2 === 1 
+                          ? 'bg-white' 
+                          : 'bg-transparent'
+                      }`} 
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
                 <button
                   type="button"
-                  onClick={handleOpenInNewTab}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all shadow-md active:scale-98"
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(window.location.href);
+                      setIsCopiedUri(true);
+                      setTimeout(() => setIsCopiedUri(false), 2500);
+                    }
+                  }}
+                  className="flex-1 py-2 px-3 rounded-lg bg-[#181818] hover:bg-[#222] border border-[#333] text-xs text-white font-mono flex items-center justify-center space-x-1.5 transition-all"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open App in New Tab (Direct Extension Access)</span>
+                  {isCopiedUri ? <Check className="w-3.5 h-3.5 text-[#00FF41]" /> : <Copy className="w-3.5 h-3.5 text-[#888]" />}
+                  <span>{isCopiedUri ? 'URL Copied!' : 'Copy Mobile URL'}</span>
                 </button>
-              )}
 
-              {/* Option 2: Install Extension */}
-              <a
-                href={missingWalletInfo.installUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={`w-full py-2.5 px-3 rounded-xl ${
-                  isInsideIframe 
-                    ? 'bg-[#181818] hover:bg-[#222] text-white border border-[#333]' 
-                    : 'bg-[#00FF41] hover:bg-[#00D436] text-black font-black'
-                } text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all`}
-              >
-                <span>Install {missingWalletInfo.name} Extension</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-
-              {/* Option 3: Use Hardware Passkey (Instant) */}
-              <button
-                type="button"
-                onClick={() => handleConnectPasskey('orah_trader')}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#141414] hover:bg-[#1A1A1A] border border-[#00FF41]/40 text-[#00FF41] font-bold text-xs flex items-center justify-center space-x-2 transition-all"
-              >
-                <Fingerprint className="w-4 h-4" />
-                <span>Connect via Hardware Passkey (Touch ID / Face ID)</span>
-              </button>
-
-              {/* Option 4: Import Seed / WIF */}
-              <button
-                type="button"
-                onClick={() => setView('seed_input')}
-                className="w-full py-2 px-3 rounded-xl bg-transparent hover:bg-[#181818] text-[#777] hover:text-white text-[11px] font-mono flex items-center justify-center space-x-1.5 transition-colors"
-              >
-                <Key className="w-3 h-3" />
-                <span>Or import 12-word seed / private key</span>
-              </button>
-
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await connectReown();
+                    } catch (e) {
+                      console.warn('Native open note:', e);
+                    }
+                  }}
+                  className="py-2 px-3 rounded-lg bg-[#1A261E] hover:bg-[#1E3024] border border-[#00FF41]/40 text-xs text-[#00FF41] font-mono flex items-center justify-center space-x-1.5 transition-all"
+                  title="Attempt opening Reown Modal directly"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>SDK Modal</span>
+                </button>
+              </div>
             </div>
 
+            {/* Instant Web3 Trader Session Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setActiveWalletAction('InstantSession');
+                  try {
+                    await connectInstantWeb3Session('Universal Web3 Trader');
+                    confetti({ particleCount: 75, spread: 65, origin: { y: 0.6 } });
+                    handleClose();
+                  } finally {
+                    setActiveWalletAction(null);
+                  }
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all shadow-[0_0_20px_rgba(0,255,65,0.25)] active:scale-98"
+              >
+                {activeWalletAction === 'InstantSession' ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-black" />
+                )}
+                <span>Connect Instant Web3 Session</span>
+              </button>
+            </div>
           </div>
         )}
 

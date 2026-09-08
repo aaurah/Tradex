@@ -12,6 +12,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Sora:wght@300;400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+      /* Ensure Reown AppKit modal stays on top of any UI element */
+      w3m-modal {
+        position: relative;
+        z-index: 999999 !important;
+      }
+      :root {
+        --w3m-z-index: 999999;
+      }
+    </style>
     <script>
       (function() {
         // Safe alert wrapper for sandboxed iframes
@@ -28,16 +38,62 @@
           }
         };
 
+        // Safe Storage Shim: in sandboxed iframes or private browsing, localStorage can throw SecurityError
+        try {
+          var testKey = '__tradex_storage_test__';
+          window.localStorage.setItem(testKey, '1');
+          window.localStorage.removeItem(testKey);
+        } catch (e) {
+          console.warn('[Tradex] Storage restricted in this sandbox/iframe, activating memory fallback:', e);
+          var memStore = {};
+          var dummyStorage = {
+            getItem: function(k) { return Object.prototype.hasOwnProperty.call(memStore, k) ? memStore[k] : null; },
+            setItem: function(k, v) { memStore[k] = String(v); },
+            removeItem: function(k) { delete memStore[k]; },
+            clear: function() { memStore = {}; },
+            key: function(i) { return Object.keys(memStore)[i] || null; },
+            get length() { return Object.keys(memStore).length; }
+          };
+          try {
+            Object.defineProperty(window, 'localStorage', { value: dummyStorage, configurable: true, writable: true });
+            Object.defineProperty(window, 'sessionStorage', { value: dummyStorage, configurable: true, writable: true });
+          } catch (e2) {
+            try {
+              window.localStorage = dummyStorage;
+              window.sessionStorage = dummyStorage;
+            } catch (e3) {}
+          }
+        }
+
+        // Safe window.open wrapper for sandboxed iframes
+        var origOpen = window.open;
+        window.open = function(url, target, features) {
+          try {
+            if (typeof origOpen === 'function') {
+              return origOpen.call(window, url, target, features);
+            }
+          } catch (e) {
+            console.warn('[Tradex] window.open blocked by sandbox:', e);
+            try {
+              window.location.href = url;
+            } catch (e2) {}
+          }
+          return null;
+        };
+
         // Prevent crashes from read-only property assignment in WebKit/Safari or third-party web3 providers
         var isReadonlyErr = function(err) {
           if (!err) return false;
           var msg = typeof err === 'string' ? err : (err.message || String(err));
-          return msg.indexOf('readonly property') !== -1 || msg.indexOf('read-only') !== -1;
+          return msg.indexOf('readonly property') !== -1 || 
+                 msg.indexOf('read-only') !== -1 ||
+                 msg.indexOf('SecurityError') !== -1 ||
+                 msg.indexOf('Blocked a frame with origin') !== -1;
         };
 
         window.addEventListener('error', function(event) {
           if (isReadonlyErr(event.message) || isReadonlyErr(event.error)) {
-            console.warn('[Handled gracefully] Prevented readonly property error:', event.message || event.error);
+            console.warn('[Handled gracefully] Prevented error:', event.message || event.error);
             event.preventDefault();
             event.stopImmediatePropagation();
             return true;
@@ -46,7 +102,7 @@
 
         window.addEventListener('unhandledrejection', function(event) {
           if (isReadonlyErr(event.reason)) {
-            console.warn('[Handled gracefully] Prevented readonly property promise rejection:', event.reason);
+            console.warn('[Handled gracefully] Prevented promise rejection:', event.reason);
             event.preventDefault();
             event.stopImmediatePropagation();
           }

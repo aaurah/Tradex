@@ -312,43 +312,21 @@ export const INITIAL_COPY_VAULTS: CopyVault[] = [
 class PerpService {
   private markets: PerpMarket[] = PERP_MARKETS;
   private positions: PerpPosition[] = [];
+  private executedTrades: RecentTrade[] = [];
   private aiAgents: AIAgent[] = JSON.parse(JSON.stringify(INITIAL_AI_AGENTS));
   private copyVaults: CopyVault[] = JSON.parse(JSON.stringify(INITIAL_COPY_VAULTS));
 
   constructor() {
     this.loadFromStorage();
-    // Default mock initial position if none exists
-    if (this.positions.length === 0) {
-      this.positions = [
-        {
-          id: 'pos_init_bsv',
-          market: 'BSV-PERP',
-          side: 'LONG',
-          sizeUsd: 2430.00,
-          sizeTokens: 50,
-          entryPrice: 47.80,
-          markPrice: 48.60,
-          liquidationPrice: 43.20,
-          leverage: 10,
-          marginUsd: 243.00,
-          marginType: 'isolated',
-          unrealizedPnlUsd: 40.00,
-          unrealizedPnlPercent: 16.46,
-          takeProfitPrice: 52.00,
-          stopLossPrice: 45.50,
-          openedAt: Date.now() - 1000 * 60 * 75,
-          autoAgentManaged: true,
-          agentId: 'agent_aura_momentum'
-        }
-      ];
-      this.saveToStorage();
-    }
   }
 
   private loadFromStorage() {
     try {
       const storedPos = localStorage.getItem('bitsv_perp_positions');
       if (storedPos) this.positions = JSON.parse(storedPos);
+
+      const storedTrades = localStorage.getItem('bitsv_perp_trades');
+      if (storedTrades) this.executedTrades = JSON.parse(storedTrades);
 
       const storedAgents = localStorage.getItem('bitsv_ai_agents');
       if (storedAgents) this.aiAgents = JSON.parse(storedAgents);
@@ -363,6 +341,7 @@ class PerpService {
   private saveToStorage() {
     try {
       localStorage.setItem('bitsv_perp_positions', JSON.stringify(this.positions));
+      localStorage.setItem('bitsv_perp_trades', JSON.stringify(this.executedTrades));
       localStorage.setItem('bitsv_ai_agents', JSON.stringify(this.aiAgents));
       localStorage.setItem('bitsv_copy_vaults', JSON.stringify(this.copyVaults));
     } catch (e) {
@@ -420,32 +399,9 @@ class PerpService {
     return { asks, bids, spread };
   }
 
-  // Generate recent live trades
-  public generateRecentTrades(marketSymbol: string): RecentTrade[] {
-    const market = this.getMarket(marketSymbol);
-    const trades: RecentTrade[] = [];
-    const now = Date.now();
-
-    for (let i = 0; i < 12; i++) {
-      const timeOffset = i * 2500 + Math.floor(Math.random() * 1500);
-      const isBuy = Math.random() > 0.45;
-      const priceDrift = (Math.random() - 0.5) * (market.price * 0.002);
-      const price = parseFloat((market.price + priceDrift).toFixed(market.price < 5 ? 3 : 2));
-      const size = parseFloat((Math.random() * 25 + 2).toFixed(2));
-      const date = new Date(now - timeOffset);
-      const timeStr = date.toTimeString().split(' ')[0];
-
-      trades.push({
-        id: `trade_${now}_${i}`,
-        price,
-        size,
-        side: isBuy ? 'buy' : 'sell',
-        time: timeStr,
-        timestamp: now - timeOffset
-      });
-    }
-
-    return trades;
+  // Retrieve recent executed trades
+  public getRecentTrades(marketSymbol?: string): RecentTrade[] {
+    return this.executedTrades;
   }
 
   // Open a new perpetual position
@@ -489,6 +445,21 @@ class PerpService {
     };
 
     this.positions.unshift(newPos);
+
+    // Record real executed trade
+    const now = Date.now();
+    const date = new Date(now);
+    const timeStr = date.toTimeString().split(' ')[0];
+    const newTrade: RecentTrade = {
+      id: `trade_${now}_${Math.random().toString(36).substring(2, 6)}`,
+      price: entryPrice,
+      size: sizeTokens,
+      side: params.side === 'LONG' ? 'buy' : 'sell',
+      time: timeStr,
+      timestamp: now
+    };
+    this.executedTrades.unshift(newTrade);
+
     this.saveToStorage();
     return newPos;
   }

@@ -65,7 +65,7 @@ export const PerpTerminal: React.FC = () => {
   useEffect(() => {
     const refreshData = () => {
       setOrderBook(perpService.generateOrderBook(selectedMarket.symbol));
-      setRecentTrades(perpService.generateRecentTrades(selectedMarket.symbol));
+      setRecentTrades(perpService.getRecentTrades(selectedMarket.symbol));
       setPositions(perpService.getPositions());
     };
 
@@ -484,15 +484,21 @@ export const PerpTerminal: React.FC = () => {
               Recent Trades
             </div>
             <div className="space-y-1 text-[10px] font-mono max-h-48 overflow-y-auto">
-              {recentTrades.slice(0, 8).map((tr) => (
-                <div key={tr.id} className="flex justify-between items-center text-[#777]">
-                  <span className={tr.side === 'buy' ? 'text-[#00FF41] font-bold' : 'text-rose-400 font-bold'}>
-                    ${tr.price.toFixed(selectedMarket.price < 5 ? 3 : 2)}
-                  </span>
-                  <span className="text-white">{tr.size}</span>
-                  <span className="text-[#555]">{tr.time}</span>
+              {recentTrades.length === 0 ? (
+                <div className="py-6 text-center text-[#555] font-mono text-[11px]">
+                  No executed perp trades recorded yet. Open a long or short position to trade 24/7.
                 </div>
-              ))}
+              ) : (
+                recentTrades.slice(0, 8).map((tr) => (
+                  <div key={tr.id} className="flex justify-between items-center text-[#777]">
+                    <span className={tr.side === 'buy' ? 'text-[#00FF41] font-bold' : 'text-rose-400 font-bold'}>
+                      ${tr.price.toFixed(selectedMarket.price < 5 ? 3 : 2)}
+                    </span>
+                    <span className="text-white">{tr.size}</span>
+                    <span className="text-[#555]">{tr.time}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

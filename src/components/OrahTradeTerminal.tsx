@@ -158,7 +158,14 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
 
   // Live orderbook generator state
   const [orderbook, setOrderbook] = useState<OrderBookRow[]>([]);
-  const [recentTrades, setRecentTrades] = useState<MarketTrade[]>([]);
+  const [recentTrades, setRecentTrades] = useState<MarketTrade[]>(() => {
+    try {
+      const stored = localStorage.getItem('tradex_executed_market_trades');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Trending Movers Ticker
   const trendingMovers = useMemo(() => {
@@ -229,41 +236,9 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
     ];
     setOrderbook(initialRows);
 
-    // Initial trades
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-    const trades: MarketTrade[] = [
-      { id: '1', time: timeStr, price: baseP, amount: baseAmountScale * 0.8, side: 'buy' },
-      { id: '2', time: timeStr, price: +(baseP - step).toFixed(precision), amount: baseAmountScale * 0.4, side: 'sell' },
-      { id: '3', time: timeStr, price: +(baseP + step).toFixed(precision), amount: baseAmountScale * 1.5, side: 'buy' },
-      { id: '4', time: timeStr, price: baseP, amount: baseAmountScale * 2.2, side: 'buy' },
-      { id: '5', time: timeStr, price: +(baseP - step * 2).toFixed(precision), amount: baseAmountScale * 0.3, side: 'sell' }
-    ];
-    setRecentTrades(trades);
-
-    // Order matching engine & live tick loop
+    // Order matching engine on live market price updates
     const interval = setInterval(() => {
-      setOrderbook(prev => {
-        if (!prev.length) return prev;
-        return prev.map(row => {
-          const jitter = (Math.random() - 0.5) * (baseAmountScale * 0.08);
-          const newBidAmt = Math.max(0.01, +(row.bidAmount + jitter).toFixed(2));
-          const newAskAmt = Math.max(0.01, +(row.askAmount - jitter).toFixed(2));
-          return {
-            ...row,
-            bidAmount: newBidAmt,
-            askAmount: newAskAmt,
-            bidDepthPct: Math.min(100, Math.max(5, row.bidDepthPct + Math.round((Math.random() - 0.5) * 4))),
-            askDepthPct: Math.min(100, Math.max(5, row.askDepthPct - Math.round((Math.random() - 0.5) * 4)))
-          };
-        });
-      });
-
-      // Micro price fluctuation for matching engine simulation
-      const tickDrift = (Math.random() - 0.5) * (baseP * 0.003);
-      const currentTickPrice = parseFloat((baseP + tickDrift).toFixed(precision));
+      const currentTickPrice = baseP;
 
       // Check open orders for Limit and Stop triggers!
       setOpenOrders(prevOrders => {
@@ -487,7 +462,7 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
       localStorage.setItem('tradex_user_open_orders', JSON.stringify(updatedOrders));
     } catch {}
 
-    // If market order, instantly add to recent trades tape
+    // If market order, instantly add to recent trades tape and persistent storage
     if (isInstantMarket) {
       const newTrade: MarketTrade = {
         id: newOrder.id,
@@ -496,7 +471,13 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
         amount: amt,
         side: tradeSide
       };
-      setRecentTrades(prev => [newTrade, ...prev.slice(0, 19)]);
+      setRecentTrades(prev => {
+        const next = [newTrade, ...prev.slice(0, 49)];
+        try {
+          localStorage.setItem('tradex_executed_market_trades', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     }
 
     confetti({
@@ -1075,22 +1056,30 @@ export const OrahTradeTerminal: React.FC<OrahTradeTerminalProps> = ({
                 {/* RECENT TRADES VIEW */}
                 {activeBottomTab === 'trades' && (
                   <div className="p-3">
-                    <div className="grid grid-cols-3 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414]">
-                      <div>TIME</div>
-                      <div className="text-right">PRICE ({selectedPair.quote})</div>
-                      <div className="text-right">AMOUNT ({selectedPair.base})</div>
-                    </div>
-                    <div className="divide-y divide-[#101010] text-xs py-1">
-                      {recentTrades.map((t) => (
-                        <div key={t.id} className="grid grid-cols-3 py-1.5 items-center">
-                          <div className="text-[#666] font-mono text-[11px]">{t.time}</div>
-                          <div className={`text-right font-bold font-mono ${t.side === 'buy' ? 'text-[#00FF41]' : 'text-red-500'}`}>
-                            {formatPrice(t.price)}
-                          </div>
-                          <div className="text-right text-white font-mono">{t.amount.toFixed(2)}</div>
+                    {recentTrades.length === 0 ? (
+                      <div className="py-12 text-center text-[#666] font-mono text-xs">
+                        No executed trades recorded yet. Place a buy or sell order to trade 24/7.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 text-[10px] uppercase text-[#666] pb-2 border-b border-[#141414]">
+                          <div>TIME</div>
+                          <div className="text-right">PRICE ({selectedPair.quote})</div>
+                          <div className="text-right">AMOUNT ({selectedPair.base})</div>
                         </div>
-                      ))}
-                    </div>
+                        <div className="divide-y divide-[#101010] text-xs py-1">
+                          {recentTrades.map((t) => (
+                            <div key={t.id} className="grid grid-cols-3 py-1.5 items-center">
+                              <div className="text-[#666] font-mono text-[11px]">{t.time}</div>
+                              <div className={`text-right font-bold font-mono ${t.side === 'buy' ? 'text-[#00FF41]' : 'text-red-500'}`}>
+                                {formatPrice(t.price)}
+                              </div>
+                              <div className="text-right text-white font-mono">{t.amount.toFixed(2)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

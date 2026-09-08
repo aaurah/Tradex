@@ -61,7 +61,8 @@ export function getOrInitReownAppKit() {
           '--w3m-color-mix': '#0A0A0A',
           '--w3m-color-mix-strength': 40,
           '--w3m-border-radius-master': '12px',
-          '--w3m-font-family': 'monospace, system-ui, sans-serif'
+          '--w3m-font-family': 'monospace, system-ui, sans-serif',
+          '--w3m-z-index': 999999
         }
       });
 
@@ -88,16 +89,66 @@ export function getOrInitReownAppKit() {
   return appKitInstance;
 }
 
-export async function openReownModal(options?: { view?: 'Connect' | 'Account' | 'Networks' | 'WhatIsAWallet' | 'AllWallets' }) {
+export async function openReownModal(options?: { view?: 'Connect' | 'Account' | 'Networks' | 'WhatIsAWallet' | 'AllWallets' }): Promise<{ success: boolean; error?: string }> {
   try {
     const kit = getOrInitReownAppKit();
     if (kit && typeof kit.open === 'function') {
-      return await kit.open(options);
+      await kit.open(options);
+      return { success: true };
     }
-  } catch (e) {
+    return { success: false, error: 'Reown AppKit is not initialized' };
+  } catch (e: any) {
     console.warn('Failed to open Reown modal:', e);
+    return { success: false, error: e?.message || 'Failed to open Reown modal' };
   }
-  return null;
+}
+
+/**
+ * Detect mobile browser (iOS, Android, etc.)
+ */
+export function isMobileBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+/**
+ * Safely check if current execution context is inside a sandboxed iframe
+ */
+export function isSandboxedIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Generates universal deep links for mobile Web3 wallets to open the DEX
+ */
+export function getDappDeepLink(wallet: 'metamask' | 'trust' | 'coinbase' | 'phantom' | 'rainbow'): string {
+  if (typeof window === 'undefined') return '';
+  const currentUrl = window.location.href;
+  const hostPath = window.location.host + window.location.pathname + window.location.search;
+
+  switch (wallet) {
+    case 'metamask':
+      // MetaMask Mobile Universal Link: launches MetaMask dapp browser directly
+      return `https://metamask.app.link/dapp/${hostPath}`;
+    case 'trust':
+      // Trust Wallet Deep Link
+      return `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(currentUrl)}`;
+    case 'coinbase':
+      // Coinbase Wallet Link
+      return `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(currentUrl)}`;
+    case 'phantom':
+      // Phantom Mobile Link
+      return `https://phantom.app/ul/browse/${encodeURIComponent(currentUrl)}`;
+    case 'rainbow':
+      // Rainbow Mobile Link
+      return `https://rainbow.me/link?url=${encodeURIComponent(currentUrl)}`;
+    default:
+      return currentUrl;
+  }
 }
 
 export async function disconnectReown() {

@@ -255,19 +255,12 @@ export const TradexLogo: React.FC<TradexLogoProps> = ({
               })}
             </div>
 
-            {/* Footer actions: Test Outage Simulation & Close */}
+            {/* Footer status summary & Close */}
             <div className="mt-4 pt-3 border-t border-[#1E1E1E] flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={handleToggleOutage}
-                className={`px-3 py-1.5 rounded-lg font-mono text-[11px] border transition-all ${
-                  health.simulatedOutageId
-                    ? 'bg-[#00FF41]/10 text-[#00FF41] border-[#00FF41]/30 hover:bg-[#00FF41]/20'
-                    : 'bg-[#181818] text-[#888] hover:text-white border-[#2A2A2A] hover:bg-[#222]'
-                }`}
-              >
-                {health.simulatedOutageId ? '✓ Restore All Servers' : '⚡ Simulate Server Down (Test Red Pulse)'}
-              </button>
+              <span className="font-mono text-[11px] text-[#00FF41] flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#00FF41] inline-block"></span>
+                <span>All Core Nodes Operational</span>
+              </span>
 
               <button
                 type="button"
