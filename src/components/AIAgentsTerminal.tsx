@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { perpService, PERP_MARKETS } from '../services/perpService';
 import { AIAgent, AIAgentType } from '../types/dex';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import {
   Bot,
   Zap,

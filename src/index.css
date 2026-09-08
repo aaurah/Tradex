@@ -139,3 +139,31 @@
   background-color: #000000 !important;
 }
 
+/* ==========================================================================
+   REOWN BRANDING SCRUBBER & WALLET POPUP THEME OVERRIDES
+   ========================================================================== */
+wui-ux-by-reown,
+.branding-only,
+[data-testid="ux-branding-reown"],
+a[href*="reown.com"],
+wui-icon[name="reown"],
+w3m-legal-footer:has(wui-ux-by-reown:only-child) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+/* Ensure wallet popup respects typography and container styling */
+w3m-modal, appkit-modal {
+  --w3m-font-family: 'JetBrains Mono', monospace, system-ui, sans-serif;
+  --apkt-fontFamily-regular: 'JetBrains Mono', monospace, system-ui, sans-serif;
+}
+
+

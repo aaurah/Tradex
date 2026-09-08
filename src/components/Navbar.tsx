@@ -37,6 +37,7 @@ export type NavTabType =
   | 'perps'         // Perpetual Futures with Leverage
   | 'predict'       // Binary Prediction Markets
   | 'stats'         // All 22M+ Markets & Telemetry
+  | 'status'        // 24/7 System Status & Reliability Page
   | 'staking'       // $ORAH / $AURA Staking Vaults
   | 'ai_agents'     // Autonomous AI Trading Terminal
   | 'copy_vaults'   // Quant Copy Strategy Vaults
@@ -155,17 +156,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               <span className="hidden sm:inline">Assets</span>
             </button>
 
-            {/* Settings Quick Button */}
+            {/* Settings Quick Button (44px min touch target on mobile) */}
             <button
+              type="button"
               onClick={() => setActiveTab('settings')}
-              className={`p-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center transition-all ${
+              className={`min-w-[40px] min-h-[40px] h-10 px-2.5 rounded-xl text-xs font-mono font-bold flex items-center justify-center space-x-1.5 transition-all active:scale-95 ${
                 activeTab === 'settings'
                   ? 'bg-[#00FF41] text-black shadow-[0_0_15px_rgba(0,255,65,0.4)]'
                   : 'bg-[#121212] hover:bg-[#1A1A1A] border border-[#262626] text-[#AAA] hover:text-white'
               }`}
-              title="Terminal & Engine Settings"
+              title="Terminal, Appearance & System Settings"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="w-4 h-4" />
+              <span className="hidden lg:inline">Settings</span>
             </button>
 
             {/* Admin Panel Button */}
@@ -281,6 +284,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
                     {/* Quick Link: Settings */}
                     <button
+                      type="button"
                       onClick={() => {
                         setActiveTab('settings');
                         setDropdownOpen(false);
@@ -289,9 +293,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                     >
                       <span className="flex items-center space-x-2 text-xs">
                         <Settings className="w-3.5 h-3.5 text-[#888]" />
-                        <span>Settings & Engine Config</span>
+                        <span>Settings & Appearance</span>
                       </span>
-                      <span className="text-[10px] text-[#888] font-mono">Config →</span>
+                      <span className="text-[10px] text-[#888] font-mono">Open →</span>
+                    </button>
+
+                    {/* Quick Link: System Status */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('status');
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-[#141414] hover:bg-[#1C1C1C] border border-[#262626] text-white font-bold flex items-center justify-between transition-colors"
+                    >
+                      <span className="flex items-center space-x-2 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
+                        <span>24/7 System Status</span>
+                      </span>
+                      <span className="text-[10px] text-[#00FF41] font-mono">100% →</span>
                     </button>
 
                     <button
@@ -463,6 +483,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
           {/* 12. Settings */}
           <button
+            type="button"
             onClick={() => setActiveTab('settings')}
             className={`px-3 py-1.5 rounded-full font-bold transition-all flex items-center space-x-1.5 shrink-0 ${
               activeTab === 'settings'
@@ -474,8 +495,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             <span>Settings</span>
           </button>
 
-          {/* 13. Admin Panel */}
+          {/* 13. System Status */}
           <button
+            type="button"
+            onClick={() => setActiveTab('status')}
+            className={`px-3 py-1.5 rounded-full font-bold transition-all flex items-center space-x-1.5 shrink-0 ${
+              activeTab === 'status'
+                ? 'bg-[#00FF41] text-black shadow-sm font-black'
+                : 'text-[#888] hover:text-white hover:bg-[#141414]'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
+            <span>Status</span>
+          </button>
+
+          {/* 14. Admin Panel */}
+          <button
+            type="button"
             onClick={() => setActiveTab('admin')}
             className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center space-x-1.5 ${
               activeTab === 'admin'
@@ -487,11 +523,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             <span>Admin</span>
           </button>
 
-          {/* 24/7 Trading & Swapping Status Badge */}
-          <div className="ml-auto hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#00FF41]/10 border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono shrink-0">
+          {/* 24/7 Trading & Swapping Status Badge (Clickable to open System Status) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('status')}
+            className="ml-auto hidden md:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#00FF41]/10 hover:bg-[#00FF41]/20 border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono shrink-0 transition-all cursor-pointer"
+            title="View Live 24/7 System Telemetry & Status"
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
             <span className="font-bold tracking-wider">24/7 TRADING & SWAPPING ACTIVE</span>
-          </div>
+          </button>
 
         </div>
       </div>

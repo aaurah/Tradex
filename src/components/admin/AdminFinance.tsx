@@ -21,7 +21,7 @@ import {
   BarChart3,
   Bot
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import confetti from '../../utils/confetti';
 import { adminSettingsStore } from '../../services/adminSettingsStore';
 
 export const AdminFinance: React.FC<{ activeSubtab: string }> = ({ activeSubtab }) => {

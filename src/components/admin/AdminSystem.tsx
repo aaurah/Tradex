@@ -26,7 +26,7 @@ import {
   Globe,
   HardDrive
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import confetti from '../../utils/confetti';
 import { adminSettingsStore, SystemLogEntry } from '../../services/adminSettingsStore';
 
 export const AdminSystem: React.FC<{ activeSubtab: string }> = ({ activeSubtab }) => {

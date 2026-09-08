@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { apiService } from '../services/apiService';
 import { escrowTradingService, TRADEX_ESCROW_CONTRACT_ADDRESS } from '../services/escrowTradingService';
 import { EscrowContractAbiCaller } from './escrow/EscrowContractAbiCaller';

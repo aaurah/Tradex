@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { AdvancedTradingChart } from './AdvancedTradingChart';
 import { MarketsDirectory22M } from './MarketsDirectory22M';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { 
   Menu, 
   Bell, 

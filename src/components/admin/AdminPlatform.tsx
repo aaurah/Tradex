@@ -29,7 +29,7 @@ import {
   Percent,
   Calculator
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import confetti from '../../utils/confetti';
 import { adminSettingsStore, AdminTradePair, PredictionMarketItem, CopyVaultStrategy } from '../../services/adminSettingsStore';
 import { copyToClipboard } from '../../utils/clipboard';
 

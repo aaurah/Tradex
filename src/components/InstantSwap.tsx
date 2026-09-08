@@ -5,7 +5,7 @@ import { Coin, SwapOrder, CoinCategory } from '../types/dex';
 import { formatBsv, formatSats } from '../services/bsvCrypto';
 import { CoinLogo } from './CoinLogo';
 import { copyToClipboard } from '../utils/clipboard';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { 
   ArrowDownUp, 
   RefreshCw, 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../context/WalletContext';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { 
   UNIFIED_TRADEX_CONTRACT, 
   getUnifiedContractExplorerUrl, 
@@ -488,8 +488,8 @@ export const WalletModal: React.FC = () => {
                     <div>
                       <div className="flex items-center space-x-2">
                         <span className="text-sm font-black text-white group-hover:text-[#00FF41] transition-colors flex items-center space-x-1.5">
-                          <span>Reown AppKit</span>
-                          <span className="text-[10px] font-mono text-[#00FF41] font-bold">SDK</span>
+                          <span>Universal Web3 Multi-Wallet</span>
+                          <span className="text-[10px] font-mono text-[#00FF41] font-bold">500+</span>
                         </span>
                         <span className="px-2 py-0.5 rounded text-[9px] font-mono font-black bg-[#00FF41] text-black shadow-sm">
                           500+ WALLETS
@@ -1130,7 +1130,7 @@ export const WalletModal: React.FC = () => {
                   </div>
                   <div className="text-xs text-[#888] mt-0.5">
                     {isMobile 
-                      ? 'Mobile browsers require direct app launch or Reown AppKit'
+                      ? 'Mobile browsers require direct app launch or Universal Multi-Wallet'
                       : isInsideIframe 
                       ? 'Running inside a sandboxed preview frame' 
                       : 'Extension not found in this browser'}
@@ -1142,7 +1142,7 @@ export const WalletModal: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-[#121814] border border-[#00FF41]/20 space-y-2 text-xs text-[#A0A0A0] leading-relaxed">
                 {isMobile ? (
                   <p>
-                    <strong className="text-white">Mobile Device Detected:</strong> Mobile browsers cannot run desktop Chrome extensions. You can launch your wallet app directly using the 1-tap link below, connect via Reown AppKit, or start an instant sandbox trading session.
+                    <strong className="text-white">Mobile Device Detected:</strong> Mobile browsers cannot run desktop Chrome extensions. You can launch your wallet app directly using the 1-tap link below, connect via Universal Web3 Multi-Wallet, or start an instant sandbox trading session.
                   </p>
                 ) : isInsideIframe ? (
                   <p>
@@ -1150,7 +1150,7 @@ export const WalletModal: React.FC = () => {
                   </p>
                 ) : (
                   <p>
-                    <strong className="text-white">Notice:</strong> {missingWalletInfo.name} was not detected. You can install it, open via Reown AppKit, or connect immediately using device biometrics.
+                    <strong className="text-white">Notice:</strong> {missingWalletInfo.name} was not detected. You can install it, open via Universal Multi-Wallet, or connect immediately using device biometrics.
                   </p>
                 )}
               </div>
@@ -1172,14 +1172,14 @@ export const WalletModal: React.FC = () => {
                   </a>
                 )}
 
-                {/* Option: Reown AppKit Universal Multi-Wallet */}
+                {/* Option: Universal Multi-Wallet */}
                 <button
                   type="button"
                   onClick={() => setView('reown_universal')}
                   className="w-full py-2.5 px-3 rounded-xl bg-[#152319] hover:bg-[#1B2F21] border border-[#00FF41]/40 text-[#00FF41] font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all"
                 >
                   <Globe className="w-4 h-4" />
-                  <span>Connect via Reown AppKit / QR Code</span>
+                  <span>Connect via Universal Multi-Wallet / QR Code</span>
                 </button>
 
                 {/* Option: 1-Click Instant Web3 Session */}
@@ -1254,7 +1254,7 @@ export const WalletModal: React.FC = () => {
               </button>
               <div className="text-center">
                 <h3 className="text-base font-black text-white flex items-center space-x-1.5 justify-center">
-                  <span>Reown AppKit</span>
+                  <span>Universal Multi-Wallet</span>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-[#00FF41]/20 text-[#00FF41] border border-[#00FF41]/40">UNIVERSAL</span>
                 </h3>
               </div>
@@ -1364,10 +1364,10 @@ export const WalletModal: React.FC = () => {
                     }
                   }}
                   className="py-2 px-3 rounded-lg bg-[#1A261E] hover:bg-[#1E3024] border border-[#00FF41]/40 text-xs text-[#00FF41] font-mono flex items-center justify-center space-x-1.5 transition-all"
-                  title="Attempt opening Reown Modal directly"
+                  title="Open Web3 Modal directly"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>SDK Modal</span>
+                  <span>Open Modal</span>
                 </button>
               </div>
             </div>

@@ -174,7 +174,7 @@ export const EXTENSIVE_CRYPTO_DATABASE: RawCoinDef[] = [
   { sym: 'POL', name: 'Polygon Ecosystem', cat: 'evm', price: 0.42, net: 'Polygon PoS', netCode: 'matic', icon: '🟣', isEVM: true, min: 30, max: 100000 },
   { sym: 'STRK', name: 'Starknet ZK-Rollup', cat: 'evm', price: 0.42, net: 'Starknet Mainnet', netCode: 'strk', icon: '⚡', min: 25, max: 120000 },
   { sym: 'ZK', name: 'ZKsync Era Rollup', cat: 'evm', price: 0.14, net: 'ZKsync Era', netCode: 'zksync', icon: '🔐', isEVM: true, min: 70, max: 350000 },
-  { sym: 'BLAST', name: 'Blast L2 Yield', cat: 'evm', price: 0.0095, net: 'Blast Network', netCode: 'blast', icon: '💥', isEVM: true, min: 1000, max: 5000000 },
+  { sym: 'BERA', name: 'Berachain L1', cat: 'evm', price: 6.50, net: 'Berachain', netCode: 'bera', icon: '🐻', isEVM: true, min: 2, max: 10000 },
   { sym: 'MANTA', name: 'Manta Pacific ZK', cat: 'evm', price: 0.78, net: 'Manta Pacific', netCode: 'manta', icon: '🐬', isEVM: true, min: 15, max: 80000 },
   { sym: 'METIS', name: 'Metis Decentralized L2', cat: 'evm', price: 42.5, net: 'Metis Andromeda', netCode: 'metis', icon: '🌿', isEVM: true, min: 0.3, max: 1500 },
   { sym: 'ZETA', name: 'ZetaChain Omnichain', cat: 'evm', price: 0.68, net: 'ZetaChain', netCode: 'zeta', icon: '⚡', isEVM: true, min: 15, max: 80000 },
@@ -374,7 +374,7 @@ export const MULTI_CHAIN_BRIDGES: {
       { name: 'OP Mainnet', code: 'op', isEVM: true },
       { name: 'Linea Network', code: 'linea', isEVM: true },
       { name: 'Scroll ZK-EVM', code: 'scroll', isEVM: true },
-      { name: 'Blast L2', code: 'blast', isEVM: true },
+      { name: 'Polygon zkEVM', code: 'polygonzkevm', isEVM: true },
       { name: 'ZKsync Era', code: 'zksync', isEVM: true },
       { name: 'Starknet', code: 'strk' },
       { name: 'Taiko', code: 'taiko', isEVM: true }

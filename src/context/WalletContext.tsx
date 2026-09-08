@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import confetti from 'canvas-confetti';
 import { WalletAccount, WalletType } from '../types/dex';
 import { 
   generateBSVKeypair, 
@@ -187,7 +186,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           // ignore
         }
         closeWalletModal();
-        confetti({ particleCount: 50, spread: 60 });
       }
     });
 
@@ -1086,16 +1084,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Credits testnet assets (USDT, ETH, BSV, ORAH, PULSE) on the active testnet
    */
   const claimTestnetTokens = async () => {
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch {
-      // ignore
-    }
-
     // If no account connected yet, auto-provision a ready-to-trade testnet account
     let currentAcc = account;
     if (!currentAcc) {

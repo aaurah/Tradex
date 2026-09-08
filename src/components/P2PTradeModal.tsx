@@ -4,7 +4,7 @@ import { useWallet } from '../context/WalletContext';
 import { apiService } from '../services/apiService';
 import { formatBsv, formatSats } from '../services/bsvCrypto';
 import { TRADEX_ESCROW_CONTRACT_ADDRESS } from '../services/escrowTradingService';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { 
   X, 
   Lock, 

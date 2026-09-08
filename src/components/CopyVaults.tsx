@@ -3,7 +3,7 @@ import { useWallet } from '../context/WalletContext';
 import { perpService } from '../services/perpService';
 import { CopyVault } from '../types/dex';
 import { CoinLogo } from './CoinLogo';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import {
   TrendingUp,
   ShieldCheck,

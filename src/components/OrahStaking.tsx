@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { CoinLogo } from './CoinLogo';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import {
   Coins,
   ShieldCheck,

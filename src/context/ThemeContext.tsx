@@ -1,11 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { applyReownTheme, getSavedPopupTheme, savePopupTheme } from '../services/reownService';
 
 export type AppTheme = 'dark' | 'light' | 'amoled' | 'system';
+export type PopupBgPreset = 'auto' | 'amoled' | 'dark' | 'light';
 
 interface ThemeContextType {
   theme: AppTheme;
   setTheme: (theme: AppTheme) => void;
   resolvedTheme: 'dark' | 'light' | 'amoled';
+  popupAccentColor: string;
+  setPopupAccentColor: (color: string) => void;
+  popupBgPreset: PopupBgPreset;
+  setPopupBgPreset: (preset: PopupBgPreset) => void;
+  previewWalletPopup: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -24,6 +31,41 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light' | 'amoled'>('amoled');
+
+  // Wallet popup appearance controls
+  const [popupAccentColor, setPopupAccentColorState] = useState<string>(() => {
+    return getSavedPopupTheme().accent || '#00FF41';
+  });
+
+  const [popupBgPreset, setPopupBgPresetState] = useState<PopupBgPreset>(() => {
+    return getSavedPopupTheme().preset || 'auto';
+  });
+
+  const setPopupAccentColor = (color: string) => {
+    setPopupAccentColorState(color);
+    savePopupTheme(color, popupBgPreset);
+    applyReownTheme({
+      themeMode: resolvedTheme === 'light' ? 'light' : 'dark',
+      accentColor: color,
+      backgroundPreset: popupBgPreset
+    });
+  };
+
+  const setPopupBgPreset = (preset: PopupBgPreset) => {
+    setPopupBgPresetState(preset);
+    savePopupTheme(popupAccentColor, preset);
+    applyReownTheme({
+      themeMode: resolvedTheme === 'light' ? 'light' : 'dark',
+      accentColor: popupAccentColor,
+      backgroundPreset: preset
+    });
+  };
+
+  const previewWalletPopup = () => {
+    import('../services/reownService').then(({ openReownModal }) => {
+      openReownModal();
+    });
+  };
 
   const applyTheme = (t: AppTheme) => {
     let active: 'dark' | 'light' | 'amoled' = 'dark';
@@ -55,6 +97,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.body.style.backgroundColor = '#09090b';
       document.body.style.color = '#E0E0E0';
     }
+
+    // Immediately sync wallet popup theme with current theme mode
+    applyReownTheme({
+      themeMode: active === 'light' ? 'light' : 'dark',
+      accentColor: popupAccentColor,
+      backgroundPreset: popupBgPreset
+    });
   };
 
   useEffect(() => {
@@ -65,6 +114,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // ignore
     }
   }, [theme]);
+
+  // Sync popup theme if accent or preset changes
+  useEffect(() => {
+    applyReownTheme({
+      themeMode: resolvedTheme === 'light' ? 'light' : 'dark',
+      accentColor: popupAccentColor,
+      backgroundPreset: popupBgPreset
+    });
+  }, [popupAccentColor, popupBgPreset, resolvedTheme]);
 
   // Listen to system changes if system mode
   useEffect(() => {
@@ -80,7 +138,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
+    <ThemeContext.Provider value={{
+      theme,
+      setTheme,
+      resolvedTheme,
+      popupAccentColor,
+      setPopupAccentColor,
+      popupBgPreset,
+      setPopupBgPreset,
+      previewWalletPopup
+    }}>
       {children}
     </ThemeContext.Provider>
   );

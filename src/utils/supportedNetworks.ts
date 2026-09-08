@@ -62,7 +62,7 @@ export const SUPPORTED_NETWORKS: NetworkConfig[] = [
       symbol: 'ETH',
       decimals: 18
     },
-    rpcUrls: ['https://rpc.sepolia.org', 'https://eth-sepolia.public.blastapi.io'],
+    rpcUrls: ['https://rpc.sepolia.org', 'https://ethereum-sepolia-rpc.publicnode.com'],
     blockExplorerUrls: ['https://sepolia.etherscan.io'],
     faucetUrl: 'https://sepoliafaucet.com',
     contractAddress: UNIFIED_TRADEX_CONTRACT,

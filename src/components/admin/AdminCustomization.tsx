@@ -26,10 +26,11 @@ import {
   Sparkles,
   Lock
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import confetti from '../../utils/confetti';
 import { adminAuthService, SUPER_ADMIN_EMAIL } from '../../services/adminAuthService';
 import { adminSettingsStore, AdminUser, SupportTicket, WebhookIntegration, ApiKeyItem } from '../../services/adminSettingsStore';
 import { liveChatService, ChatSession, ChatMessage } from '../../services/liveChatService';
+import { applyReownTheme, savePopupTheme } from '../../services/reownService';
 
 export const AdminCustomization: React.FC<{ activeSubtab: string }> = ({ activeSubtab }) => {
   const [, setTick] = useState(0);
@@ -276,6 +277,8 @@ export const AdminCustomization: React.FC<{ activeSubtab: string }> = ({ activeS
     store.theme.preset = preset;
     store.theme.accentHue = hue;
     adminSettingsStore.save();
+    applyReownTheme({ accentColor: hue });
+    savePopupTheme(hue);
     setThemeNotice(true);
     confetti({ particleCount: 25 });
     setTimeout(() => setThemeNotice(false), 2500);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WalletProvider } from './context/WalletContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar, NavTabType } from './components/Navbar';
@@ -25,6 +25,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<NavTabType>('trade');
   const [selectedSwapCoin, setSelectedSwapCoin] = useState<Coin | null>(null);
   const [selectedTradePairSymbol, setSelectedTradePairSymbol] = useState<string | null>(null);
+
+  // Ensure view resets to top when switching navigation tabs
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeTab]);
 
   const handleSelectCoinForSwap = (coin: Coin) => {
     setSelectedSwapCoin(coin);
@@ -96,7 +101,16 @@ export default function App() {
               />
             )}
             {activeTab === 'settings' && (
-              <SettingsView onNavigate={(tab) => setActiveTab(tab as NavTabType)} />
+              <SettingsView 
+                initialTab="general"
+                onNavigate={(tab) => setActiveTab(tab as NavTabType)} 
+              />
+            )}
+            {activeTab === 'status' && (
+              <SettingsView 
+                initialTab="status"
+                onNavigate={(tab) => setActiveTab(tab as NavTabType)} 
+              />
             )}
           </main>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import { useWallet } from '../context/WalletContext';
 import { UNIFIED_TRADEX_CONTRACT, getUnifiedContractExplorerUrl } from '../utils/supportedNetworks';
 import { apiService } from '../services/apiService';

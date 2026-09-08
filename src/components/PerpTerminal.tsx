@@ -4,7 +4,7 @@ import { perpService, PERP_MARKETS } from '../services/perpService';
 import { PerpMarket, PerpPosition, OrderBookLevel, RecentTrade } from '../types/dex';
 import { AdvancedTradingChart } from './AdvancedTradingChart';
 import { CoinLogo } from './CoinLogo';
-import confetti from 'canvas-confetti';
+import confetti from '../utils/confetti';
 import {
   TrendingUp,
   TrendingDown,
