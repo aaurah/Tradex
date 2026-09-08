@@ -312,8 +312,8 @@ export const INITIAL_COPY_VAULTS: CopyVault[] = [
 class PerpService {
   private markets: PerpMarket[] = PERP_MARKETS;
   private positions: PerpPosition[] = [];
-  private aiAgents: AIAgent[] = INITIAL_AI_AGENTS;
-  private copyVaults: CopyVault[] = INITIAL_COPY_VAULTS;
+  private aiAgents: AIAgent[] = JSON.parse(JSON.stringify(INITIAL_AI_AGENTS));
+  private copyVaults: CopyVault[] = JSON.parse(JSON.stringify(INITIAL_COPY_VAULTS));
 
   constructor() {
     this.loadFromStorage();

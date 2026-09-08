@@ -102,9 +102,12 @@ class TradeMarketsService {
         // Micro fluctuation between -0.3% and +0.3%
         const deltaPct = (Math.random() * 0.006 - 0.003);
         const newPrice = Math.max(0.00000001, coin.priceUsd * (1 + deltaPct));
-        coin.priceUsd = parseFloat(newPrice >= 10 ? newPrice.toFixed(2) : newPrice >= 0.1 ? newPrice.toFixed(4) : newPrice.toFixed(8));
-        coin.change24h = parseFloat(((coin.change24h || 0) + deltaPct * 10).toFixed(2));
-        coin.volume24hUsd = (coin.volume24hUsd || 500000) + Math.floor(Math.random() * 15000);
+        this.allCoins[randIdx] = {
+          ...coin,
+          priceUsd: parseFloat(newPrice >= 10 ? newPrice.toFixed(2) : newPrice >= 0.1 ? newPrice.toFixed(4) : newPrice.toFixed(8)),
+          change24h: parseFloat(((coin.change24h || 0) + deltaPct * 10).toFixed(2)),
+          volume24hUsd: (coin.volume24hUsd || 500000) + Math.floor(Math.random() * 15000)
+        };
       }
 
       // Refresh pairs
@@ -128,9 +131,11 @@ class TradeMarketsService {
   }
 
   private initCatalog() {
-    this.allCoins = letsExchangeApiService.getCoins().length > 0
+    const initialList = letsExchangeApiService.getCoins().length > 0
       ? letsExchangeApiService.getCoins()
       : buildLetsExchange22MMarketsCatalog();
+
+    this.allCoins = initialList.map(c => ({ ...c }));
 
     // Ensure core ecosystem tokens and LetsExchange stars like LMWR and A8 are guaranteed present
     const baseCatalog = buildLetsExchange22MMarketsCatalog();
@@ -138,7 +143,7 @@ class TradeMarketsService {
     this.allCoins.forEach(c => existingMap.set(c.symbol.toUpperCase(), c));
     baseCatalog.forEach(c => {
       if (!existingMap.has(c.symbol.toUpperCase())) {
-        this.allCoins.push(c);
+        this.allCoins.push({ ...c });
         existingMap.set(c.symbol.toUpperCase(), c);
       }
     });

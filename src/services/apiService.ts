@@ -470,12 +470,12 @@ export class DexApiService {
   // --- P2P ORDERBOOK API ---
 
   public getP2POrders(): P2POrder[] {
-    if (typeof window === 'undefined') return INITIAL_P2P_ORDERS;
+    if (typeof window === 'undefined') return JSON.parse(JSON.stringify(INITIAL_P2P_ORDERS));
     try {
       const data = localStorage.getItem(STORAGE_P2P_ORDERS);
-      return data ? JSON.parse(data) : INITIAL_P2P_ORDERS;
+      return data ? JSON.parse(data) : JSON.parse(JSON.stringify(INITIAL_P2P_ORDERS));
     } catch {
-      return INITIAL_P2P_ORDERS;
+      return JSON.parse(JSON.stringify(INITIAL_P2P_ORDERS));
     }
   }
 
@@ -828,16 +828,17 @@ export class DexApiService {
   }
 
   public getEscrowContracts(): EscrowContract[] {
-    if (typeof window === 'undefined') return INITIAL_ESCROW_CONTRACTS;
+    if (typeof window === 'undefined') return JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
     try {
       const data = localStorage.getItem(STORAGE_ESCROW_CONTRACTS);
       if (data) {
         return JSON.parse(data);
       }
-      localStorage.setItem(STORAGE_ESCROW_CONTRACTS, JSON.stringify(INITIAL_ESCROW_CONTRACTS));
-      return INITIAL_ESCROW_CONTRACTS;
+      const cloned = JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
+      localStorage.setItem(STORAGE_ESCROW_CONTRACTS, JSON.stringify(cloned));
+      return cloned;
     } catch {
-      return INITIAL_ESCROW_CONTRACTS;
+      return JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
     }
   }
 

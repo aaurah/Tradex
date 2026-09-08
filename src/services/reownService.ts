@@ -37,6 +37,8 @@ export const reownSupportedNetworks = [
 ] as const;
 
 let appKitInstance: any = null;
+const accountSubscribers: Set<(account: any) => void> = new Set();
+let activeSubscriptionUnsub: (() => void) | null = null;
 
 export function getOrInitReownAppKit() {
   if (typeof window === 'undefined') return null;
@@ -48,7 +50,7 @@ export function getOrInitReownAppKit() {
         metadata: reownMetadata,
         projectId: REOWN_PROJECT_ID,
         features: {
-          analytics: true,
+          analytics: false, // Avoid analytics telemetry mutations
           email: true,
           socials: ['google', 'x', 'github', 'discord', 'apple'],
           emailShowWallets: true
@@ -62,48 +64,98 @@ export function getOrInitReownAppKit() {
           '--w3m-font-family': 'monospace, system-ui, sans-serif'
         }
       });
+
+      // Hook up any pending account subscribers if AppKit was just instantiated
+      if (appKitInstance && typeof appKitInstance.subscribeAccount === 'function' && !activeSubscriptionUnsub) {
+        try {
+          activeSubscriptionUnsub = appKitInstance.subscribeAccount((acc: any) => {
+            accountSubscribers.forEach(cb => {
+              try {
+                cb(acc);
+              } catch (err) {
+                console.warn('Error in Reown account subscriber callback:', err);
+              }
+            });
+          });
+        } catch (subErr) {
+          console.warn('Reown account subscribe note:', subErr);
+        }
+      }
     } catch (e) {
-      console.warn('Reown AppKit initialization note:', e);
+      console.warn('Reown AppKit initialization note (non-fatal):', e);
     }
   }
   return appKitInstance;
 }
 
 export async function openReownModal(options?: { view?: 'Connect' | 'Account' | 'Networks' | 'WhatIsAWallet' | 'AllWallets' }) {
-  const kit = getOrInitReownAppKit();
-  if (kit && typeof kit.open === 'function') {
-    return kit.open(options);
+  try {
+    const kit = getOrInitReownAppKit();
+    if (kit && typeof kit.open === 'function') {
+      return await kit.open(options);
+    }
+  } catch (e) {
+    console.warn('Failed to open Reown modal:', e);
   }
   return null;
 }
 
 export async function disconnectReown() {
-  const kit = getOrInitReownAppKit();
-  if (kit && typeof kit.disconnect === 'function') {
-    return kit.disconnect();
+  try {
+    const kit = appKitInstance;
+    if (kit && typeof kit.disconnect === 'function') {
+      return await kit.disconnect();
+    }
+  } catch (e) {
+    console.warn('Error disconnecting Reown:', e);
   }
 }
 
 export function subscribeReownAccount(callback: (account: any) => void) {
-  const kit = getOrInitReownAppKit();
-  if (kit && typeof kit.subscribeAccount === 'function') {
-    return kit.subscribeAccount(callback);
+  accountSubscribers.add(callback);
+
+  // If appKitInstance already exists, ensure subscription is active
+  if (appKitInstance && typeof appKitInstance.subscribeAccount === 'function' && !activeSubscriptionUnsub) {
+    try {
+      activeSubscriptionUnsub = appKitInstance.subscribeAccount((acc: any) => {
+        accountSubscribers.forEach(cb => {
+          try {
+            cb(acc);
+          } catch (err) {
+            console.warn('Error in Reown account subscriber callback:', err);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('Reown subscribeAccount error:', e);
+    }
   }
-  return () => {};
+
+  return () => {
+    accountSubscribers.delete(callback);
+  };
 }
 
 export function getReownAccount() {
-  const kit = getOrInitReownAppKit();
-  if (kit && typeof kit.getAccount === 'function') {
-    return kit.getAccount();
+  if (!appKitInstance) return null;
+  try {
+    if (typeof appKitInstance.getAccount === 'function') {
+      return appKitInstance.getAccount();
+    }
+  } catch {
+    // ignore
   }
   return null;
 }
 
 export function getReownWalletProvider() {
-  const kit = getOrInitReownAppKit();
-  if (kit && typeof kit.getWalletProvider === 'function') {
-    return kit.getWalletProvider();
+  if (!appKitInstance) return null;
+  try {
+    if (typeof appKitInstance.getWalletProvider === 'function') {
+      return appKitInstance.getWalletProvider();
+    }
+  } catch {
+    // ignore
   }
   return null;
 }

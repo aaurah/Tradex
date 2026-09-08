@@ -273,13 +273,16 @@ class LetsExchangeApiService {
               const sym = (g.symbol || '').toUpperCase();
               const existing = combinedMap.get(sym);
               if (existing) {
-                if (g.current_price) existing.priceUsd = g.current_price;
-                if (g.price_change_percentage_24h != null) existing.change24h = parseFloat(g.price_change_percentage_24h.toFixed(2));
-                if (g.image) existing.logoUrl = g.image;
-                if (g.market_cap) existing.marketCapUsd = g.market_cap;
-                if (g.total_volume) existing.volume24hUsd = g.total_volume;
-                if (g.market_cap_rank) existing.rank = g.market_cap_rank;
-                combinedMap.set(sym, existing);
+                const updatedCoin: Coin = {
+                  ...existing,
+                  priceUsd: g.current_price ? g.current_price : existing.priceUsd,
+                  change24h: g.price_change_percentage_24h != null ? parseFloat(g.price_change_percentage_24h.toFixed(2)) : existing.change24h,
+                  logoUrl: g.image || existing.logoUrl,
+                  marketCapUsd: g.market_cap || existing.marketCapUsd,
+                  volume24hUsd: g.total_volume || existing.volume24hUsd,
+                  rank: g.market_cap_rank || existing.rank
+                };
+                combinedMap.set(sym, updatedCoin);
               } else if (g.name && g.symbol) {
                 combinedMap.set(sym, {
                   symbol: sym,

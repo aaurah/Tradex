@@ -487,6 +487,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             <span>Admin</span>
           </button>
 
+          {/* 24/7 Trading & Swapping Status Badge */}
+          <div className="ml-auto hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#00FF41]/10 border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse"></span>
+            <span className="font-bold tracking-wider">24/7 TRADING & SWAPPING ACTIVE</span>
+          </div>
+
         </div>
       </div>
 
