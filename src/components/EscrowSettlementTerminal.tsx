@@ -61,7 +61,7 @@ export const EscrowSettlementTerminal: React.FC = () => {
 
   // Contracts list state
   const [contracts, setContracts] = useState<EscrowContract[]>([]);
-  const [selectedContractId, setSelectedContractId] = useState<string>('escrow-bsv-whale-902');
+  const [selectedContractId, setSelectedContractId] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -70,13 +70,13 @@ export const EscrowSettlementTerminal: React.FC = () => {
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<EscrowContractType>('CROSS_ASSET_ATOMIC');
   const [newDepositAsset, setNewDepositAsset] = useState('USDT');
-  const [newDepositAmount, setNewDepositAmount] = useState('10000');
+  const [newDepositAmount, setNewDepositAmount] = useState('1000');
   const [newDepositNetwork, setNewDepositNetwork] = useState('Ethereum (ERC-20)');
   const [newTargetAsset, setNewTargetAsset] = useState('BSV');
-  const [newTargetAmount, setNewTargetAmount] = useState('205');
+  const [newTargetAmount, setNewTargetAmount] = useState('20');
   const [newTargetNetwork, setNewTargetNetwork] = useState('Bitcoin SV');
-  const [newCounterparty, setNewCounterparty] = useState('1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1');
-  const [newCounterpartyHandle, setNewCounterpartyHandle] = useState('$trader_taker');
+  const [newCounterparty, setNewCounterparty] = useState('');
+  const [newCounterpartyHandle, setNewCounterpartyHandle] = useState('');
   const [newInspectionHours, setNewInspectionHours] = useState(24);
   const [newTimelockBlocks, setNewTimelockBlocks] = useState(144);
   const [newTerms, setNewTerms] = useState('Mutual satisfaction release. Atomic dual-party settlement on ledger.');
@@ -1297,6 +1297,20 @@ export const EscrowSettlementTerminal: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeMainTab === 'inspector' && !selectedContract && (
+        <div className="p-12 text-center text-xs text-[#777] rounded-xl bg-[#0A0A0A] border border-[#222] space-y-3">
+          <ShieldCheck className="w-10 h-10 text-[#444] mx-auto" />
+          <p className="text-white font-bold text-sm">No Escrow Contract Selected</p>
+          <p className="text-[#666]">Create an escrow contract or select one from the contracts tab to inspect its scriptPubKey and state.</p>
+          <button
+            onClick={() => setActiveMainTab('create')}
+            className="px-4 py-2 rounded-lg bg-[#00FF41] hover:bg-[#00D436] text-black font-black text-xs uppercase transition-all"
+          >
+            Create New Escrow
+          </button>
         </div>
       )}
 

@@ -37,7 +37,7 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
   initialFromCoin,
   initialToCoin
 }) => {
-  const { account, isConnected, openWalletModal, updateBalance } = useWallet();
+  const { account, isConnected, openWalletModal, updateBalance, getTokenBalance, updateTokenBalance } = useWallet();
 
   const [coinsList, setCoinsList] = useState<Coin[]>(BASE_LETSEXCHANGE_COINS);
   const [apiSyncStatus, setApiSyncStatus] = useState({
@@ -169,15 +169,13 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
 
     let targetRecipient = recipientAddress.trim();
     if (!targetRecipient) {
-      if (toCoin.symbol === 'BSV' && account?.address) {
-        targetRecipient = account.address;
-        setRecipientAddress(account.address);
-      } else if (account?.address) {
+      if (account?.address) {
         targetRecipient = account.address;
         setRecipientAddress(account.address);
       } else {
-        targetRecipient = '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1';
-        setRecipientAddress(targetRecipient);
+        openWalletModal();
+        setSwapErrorMessage('Please connect your wallet or enter a destination payout address.');
+        return;
       }
     }
 
@@ -209,7 +207,11 @@ export const InstantSwap: React.FC<InstantSwapProps> = ({
           spread: 70,
           origin: { y: 0.6 }
         });
-        if (updated.toCoin.symbol === 'BSV') {
+        // Deduct fromCoin and credit toCoin in user's multi-chain wallet
+        if (updateTokenBalance) {
+          updateTokenBalance(updated.fromCoin.symbol, -updated.amountFrom);
+          updateTokenBalance(updated.toCoin.symbol, updated.amountTo);
+        } else if (updated.toCoin.symbol === 'BSV') {
           updateBalance(updated.amountTo);
         }
       }

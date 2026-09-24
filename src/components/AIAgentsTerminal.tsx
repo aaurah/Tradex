@@ -179,51 +179,64 @@ export const AIAgentsTerminal: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {agents.map((agent) => {
-              const isSelected = selectedAgent?.id === agent.id;
-              return (
-                <div
-                  key={agent.id}
-                  onClick={() => setSelectedAgent(agent)}
-                  className={`p-4 rounded-sm bg-[#0A0A0A] border cursor-pointer transition-all ${
-                    isSelected ? 'border-[#00FF41] shadow-[0_0_15px_rgba(0,255,65,0.1)]' : 'border-[#222] hover:border-[#333]'
-                  }`}
+            {agents.length === 0 ? (
+              <div className="p-8 text-center text-xs text-[#666] rounded-sm bg-[#0A0A0A] border border-[#222] space-y-3">
+                <Bot className="w-8 h-8 text-[#444] mx-auto" />
+                <p>No AI trading agents deployed in fleet.</p>
+                <button
+                  onClick={() => setIsDeployModalOpen(true)}
+                  className="px-4 py-2 bg-[#00FF41] text-black font-black uppercase text-[11px] rounded-sm tracking-wider hover:bg-[#00D436] transition-all"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`w-2 h-2 rounded-full ${agent.status === 'active' ? 'bg-[#00FF41] animate-pulse' : 'bg-amber-500'}`}></span>
-                        <h3 className="font-black text-white text-sm tracking-tight">{agent.name}</h3>
+                  Deploy First Agent
+                </button>
+              </div>
+            ) : (
+              agents.map((agent) => {
+                const isSelected = selectedAgent?.id === agent.id;
+                return (
+                  <div
+                    key={agent.id}
+                    onClick={() => setSelectedAgent(agent)}
+                    className={`p-4 rounded-sm bg-[#0A0A0A] border cursor-pointer transition-all ${
+                      isSelected ? 'border-[#00FF41] shadow-[0_0_15px_rgba(0,255,65,0.1)]' : 'border-[#222] hover:border-[#333]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`w-2 h-2 rounded-full ${agent.status === 'active' ? 'bg-[#00FF41] animate-pulse' : 'bg-amber-500'}`}></span>
+                          <h3 className="font-black text-white text-sm tracking-tight">{agent.name}</h3>
+                        </div>
+                        <div className="flex items-center space-x-2 text-[10px] text-[#777] mt-1">
+                          <span className="bg-[#151515] px-1.5 py-0.5 rounded border border-[#252525] text-white font-bold">{agent.market}</span>
+                          <span>{agent.leverage}x Leverage</span>
+                          <span className="text-[#555]">•</span>
+                          <span className="text-[#00FF41]">{agent.aiModel}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2 text-[10px] text-[#777] mt-1">
-                        <span className="bg-[#151515] px-1.5 py-0.5 rounded border border-[#252525] text-white font-bold">{agent.market}</span>
-                        <span>{agent.leverage}x Leverage</span>
-                        <span className="text-[#555]">•</span>
-                        <span className="text-[#00FF41]">{agent.aiModel}</span>
+
+                      <div className="text-right">
+                        <div className="text-sm font-black text-[#00FF41]">
+                          +${agent.totalPnlUsd.toFixed(2)}
+                        </div>
+                        <div className="text-[10px] text-[#00FF41]">
+                          (+{agent.totalPnlPercent}%)
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <div className="text-sm font-black text-[#00FF41]">
-                        +${agent.totalPnlUsd.toFixed(2)}
-                      </div>
-                      <div className="text-[10px] text-[#00FF41]">
-                        (+{agent.totalPnlPercent}%)
-                      </div>
+                    <p className="text-[11px] text-[#777] mt-2 line-clamp-2">
+                      {agent.description}
+                    </p>
+
+                    <div className="mt-3 pt-2 border-t border-[#181818] flex items-center justify-between text-[10px] text-[#666]">
+                      <div>Win Rate: <span className="text-white font-bold">{agent.winRate}%</span> ({agent.tradesCount} trades)</div>
+                      <div>Capital: <span className="text-white font-bold">${agent.allocatedCapitalUsd}</span></div>
                     </div>
                   </div>
-
-                  <p className="text-[11px] text-[#777] mt-2 line-clamp-2">
-                    {agent.description}
-                  </p>
-
-                  <div className="mt-3 pt-2 border-t border-[#181818] flex items-center justify-between text-[10px] text-[#666]">
-                    <div>Win Rate: <span className="text-white font-bold">{agent.winRate}%</span> ({agent.tradesCount} trades)</div>
-                    <div>Capital: <span className="text-white font-bold">${agent.allocatedCapitalUsd}</span></div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 

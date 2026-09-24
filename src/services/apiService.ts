@@ -19,50 +19,8 @@ export const SUPPORTED_COINS = BASE_LETSEXCHANGE_COINS;
 // Initial realistic P2P offers (user created offers only)
 const INITIAL_P2P_ORDERS: P2POrder[] = [];
 
-const INITIAL_SETTLEMENT_LOGS: OnChainSettlementLog[] = [
-  {
-    id: 'log-101',
-    txid: 'd8c47b59e381048f72c695a28cb20d43a19bc89264c7e3f81e8f237b6058097b',
-    blockHeight: 890410,
-    type: 'P2P_SETTLEMENT_RELEASE',
-    amountSats: 2550000000, // 25.5 BSV
-    feeSats: 450,
-    rawHex: '010000000188c9f7a932b...',
-    inputsCount: 1,
-    outputsCount: 2,
-    scriptType: '2-of-2 Multi-Sig Escrow',
-    status: 'confirmed',
-    timestamp: Date.now() - 1000 * 60 * 18
-  },
-  {
-    id: 'log-102',
-    txid: 'f4a91b2c78e90d3419bc89264c7e3f81e8f237b6058097b69c4c82b0e87d8a9e',
-    blockHeight: 890409,
-    type: 'CROSS_CHAIN_SWAP_SETTLE',
-    amountSats: 500000000, // 5.0 BSV
-    feeSats: 320,
-    rawHex: '010000000155b461...',
-    inputsCount: 1,
-    outputsCount: 1,
-    scriptType: 'P2PKH Standard Script',
-    status: 'confirmed',
-    timestamp: Date.now() - 1000 * 60 * 42
-  },
-  {
-    id: 'log-103',
-    txid: '3b890d3419bc89264c7e3f81e8f237b6058097b69c4c82b0e87d8a9ef4a91b2c',
-    blockHeight: 890408,
-    type: 'P2P_ESCROW_LOCK',
-    amountSats: 10000000000, // 100 BSV
-    feeSats: 512,
-    rawHex: '0100000001...',
-    inputsCount: 2,
-    outputsCount: 1,
-    scriptType: '2-of-2 Multi-Sig Escrow',
-    status: 'confirmed',
-    timestamp: Date.now() - 1000 * 60 * 75
-  }
-];
+// Real on-chain settlement logs populated when swaps and escrow settlements occur
+const INITIAL_SETTLEMENT_LOGS: OnChainSettlementLog[] = [];
 
 export class DexApiService {
   private static instance: DexApiService;
@@ -722,17 +680,18 @@ export class DexApiService {
   }
 
   public getEscrowContracts(): EscrowContract[] {
-    if (typeof window === 'undefined') return JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
+    if (typeof window === 'undefined') return [];
     try {
       const data = localStorage.getItem(STORAGE_ESCROW_CONTRACTS);
       if (data) {
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(c => c && c.id && !c.id.includes('esc-880'));
+        }
       }
-      const cloned = JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
-      localStorage.setItem(STORAGE_ESCROW_CONTRACTS, JSON.stringify(cloned));
-      return cloned;
+      return [];
     } catch {
-      return JSON.parse(JSON.stringify(INITIAL_ESCROW_CONTRACTS));
+      return [];
     }
   }
 
@@ -1075,189 +1034,8 @@ export class DexApiService {
   }
 }
 
-// Initial realistic escrow contracts across categories
-const INITIAL_ESCROW_CONTRACTS: EscrowContract[] = [
-  {
-    id: 'esc-8801-atomic-bsv',
-    title: 'Institutional OTC Atomic Swap: 100.00 BSV ⟷ 4,860.00 USDT',
-    type: 'CROSS_ASSET_ATOMIC',
-    status: 'DUAL_FUNDED',
-    creatorAddress: '1P5ZEDWTKTFGxQjZphgWPQUpe554WKDfHQ',
-    creatorHandle: '$alpha_otc',
-    counterpartyAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    counterpartyHandle: '$evm_whale',
-    arbitratorAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'Tradex Cross-Chain Oracle Bridge',
-    depositAsset: 'BSV',
-    depositAmount: 100.0,
-    depositNetwork: 'Bitcoin SV Mainnet',
-    depositAddress: '1P5ZEDWTKTFGxQjZphgWPQUpe554WKDfHQ',
-    depositTxId: '0x88fca9b19e24018239bb4819d28e7f61c3894b172a',
-    isPartyAFunded: true,
-    targetAsset: 'USDT',
-    targetAmount: 4860.0,
-    targetNetwork: 'Base (Ethereum L2)',
-    targetAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    targetTxId: '0x39b81e89201948ba28172cba94821a8120bca9172',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 3600000 * 3,
-    expiresAt: Date.now() + 3600000 * 21,
-    inspectionHours: 24,
-    timelockBlocks: 144,
-    scriptType: 'Cross-Chain Atomic Hash Lock',
-    scriptAsm: 'OP_IF OP_SHA256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 OP_EQUALVERIFY OP_CHECKLOCKTIMEVERIFY 144 OP_DROP OP_2 0287a9bc2451... 03bc194a7e3f... 2 OP_CHECKMULTISIG',
-    scriptHash: '0x38b2910fa8c829e17b819f20102bca819f72b102',
-    escrowContractAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 250,
-    securityCollateralUsd: 486,
-    terms: 'Atomic swap executes automatically upon broadcast of pre-image secret by Party A. If expiration is reached without reveal, timelock refunds both parties unconditionally.'
-  },
-  {
-    id: 'esc-8802-milestone-quant',
-    title: 'Alpha Trading Model IP Handover & API Delivery (65.00 BSV)',
-    type: 'MILESTONE_TRANCHE',
-    status: 'IN_INSPECTION',
-    creatorAddress: '1A98kLmNp4q8ZkP1vRy3sW7aX2vYpX9bC2',
-    creatorHandle: '$quant_fund',
-    counterpartyAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    counterpartyHandle: '$dev_guru',
-    arbitratorAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'Tradex Autonomous AI Arbiter',
-    depositAsset: 'BSV',
-    depositAmount: 65.0,
-    depositNetwork: 'Bitcoin SV Mainnet',
-    depositAddress: '1A98kLmNp4q8ZkP1vRy3sW7aX2vYpX9bC2',
-    depositTxId: '0x992019bca8817293a90182390192837192830192',
-    isPartyAFunded: true,
-    targetAsset: 'AI Quant Model Docker Image + Webhook API Key',
-    targetAmount: 1,
-    targetNetwork: 'Off-Chain / Tradex Secure Enclave',
-    targetAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 3600000 * 12,
-    expiresAt: Date.now() + 3600000 * 36,
-    inspectionHours: 48,
-    timelockBlocks: 288,
-    milestones: [
-      { id: 'm1', title: 'Milestone 1: Environment & Dataset Validation', percentage: 25, amount: 16.25, status: 'RELEASED', txid: '0x4981...01m1' },
-      { id: 'm2', title: 'Milestone 2: 72-Hour Backtest Sharpe Ratio > 2.8', percentage: 50, amount: 32.50, status: 'APPROVED' },
-      { id: 'm3', title: 'Milestone 3: Live Mainnet API Key Delivery & Handover', percentage: 25, amount: 16.25, status: 'PENDING' }
-    ],
-    scriptType: '2-of-2 Multi-Sig',
-    scriptAsm: 'OP_2 0287a9bc24519f8e4c7b6a1234567890abcdef1234567890abcdef1234567890ab 03bc194a7e3f81e8f237b6058097b69c4c82b0e87d8a9e71cb4655022067d268d0 2 OP_CHECKMULTISIG',
-    scriptHash: '0x718b2091c890182ba8172c918237910283719283',
-    escrowContractAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 320,
-    securityCollateralUsd: 315,
-    terms: 'Progressive milestone release. Party A inspects deliverables for each tranche and digitally signs release using threshold signatures.'
-  },
-  {
-    id: 'esc-8803-timelock-btc',
-    title: 'Cross-Chain Timelocked Safeguard: 1,250.00 BSV ⟷ 2.50 BTC',
-    type: 'TIMELOCKED_SAFEGUARD',
-    status: 'PARTY_A_FUNDED',
-    creatorAddress: '1F34kLmQ8vRy3sW7aX2vYpX9bC2891kLmNp',
-    creatorHandle: '$btc_custodian',
-    counterpartyAddress: '1P5ZEDWTKTFGxQjZphgWPQUpe554WKDfHQ',
-    counterpartyHandle: '$bsv_trader',
-    arbitratorAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'CertiK Verified On-Chain Anchor',
-    depositAsset: 'BSV',
-    depositAmount: 1250.0,
-    depositNetwork: 'Bitcoin SV Mainnet',
-    depositAddress: '1F34kLmQ8vRy3sW7aX2vYpX9bC2891kLmNp',
-    depositTxId: '0x77c9018239019283719283019283019283019283',
-    isPartyAFunded: true,
-    targetAsset: 'BTC',
-    targetAmount: 2.50,
-    targetNetwork: 'Bitcoin Core Mainnet',
-    targetAddress: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
-    isPartyBFunded: false,
-    createdAt: Date.now() - 3600000 * 1,
-    expiresAt: Date.now() + 3600000 * 47,
-    inspectionHours: 48,
-    timelockBlocks: 288,
-    scriptType: 'CLTV Timelock Escrow',
-    scriptAsm: 'OP_IF OP_CHECKLOCKTIMEVERIFY 890702 OP_DROP OP_DUP OP_HASH160 1F34k... OP_EQUALVERIFY OP_CHECKSIG OP_ELSE OP_2 <pubA> <pubB> 2 OP_CHECKMULTISIG OP_ENDIF',
-    scriptHash: '0x9918230192837192830192830192830192830192',
-    escrowContractAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 450,
-    securityCollateralUsd: 6075,
-    terms: 'Party A has deposited 1,250 BSV into CLTV Timelock. If Party B does not deposit 2.50 BTC by block #890702, Party A can reclaim 100% of collateral with zero penalty.'
-  },
-  {
-    id: 'esc-8804-oracle-dispute',
-    title: 'Autonomous AI Agent Arbiter Escrow: 10,000 $ORAH ⟷ 500 USDC',
-    type: 'MULTI_SIG_ORACLE',
-    status: 'DISPUTED',
-    creatorAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    creatorHandle: '$algo_seller',
-    counterpartyAddress: '0x438A3F47E82C2939B948aFbcC2817d23d82B0001',
-    counterpartyHandle: '$buyer_desk',
-    arbitratorAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'Tradex Autonomous AI Arbiter (0x4deb60...cF2)',
-    depositAsset: 'ORAH',
-    depositAmount: 10000.0,
-    depositNetwork: 'BSV Token Overlay',
-    depositAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    depositTxId: '0x1182301928371928301928301928301928301928',
-    isPartyAFunded: true,
-    targetAsset: 'USDC',
-    targetAmount: 500.0,
-    targetNetwork: 'Base (Ethereum L2)',
-    targetAddress: '0x438A3F47E82C2939B948aFbcC2817d23d82B0001',
-    targetTxId: '0x2282301928371928301928301928301928301928',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 3600000 * 20,
-    expiresAt: Date.now() + 3600000 * 4,
-    inspectionHours: 24,
-    timelockBlocks: 144,
-    scriptType: '2-of-3 Oracle Multi-Sig',
-    scriptAsm: 'OP_2 <pubSeller> <pubBuyer> <pubOracle: 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2> 3 OP_CHECKMULTISIG',
-    scriptHash: '0x4deb6023abD9E1C640aDa35201be8ff591d21cF2',
-    escrowContractAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 380,
-    securityCollateralUsd: 500,
-    disputeReason: 'Buyer reported deliverable API token returned HTTP 429 quota exhaustion. Tradex Oracle telemetry reviewing on-chain execution logs.',
-    terms: 'Disputed state invokes 2-of-3 Oracle resolution. The Tradex AI Arbiter analyzes off-chain latency and logs to cast the deciding threshold signature.'
-  },
-  {
-    id: 'esc-8805-settled-eth',
-    title: 'Cross-Chain OTC Liquidity: 15.00 ETH ⟷ 820.00 BSV',
-    type: 'CROSS_ASSET_ATOMIC',
-    status: 'SETTLED',
-    creatorAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    creatorHandle: '$eth_whales',
-    counterpartyAddress: '1P5ZEDWTKTFGxQjZphgWPQUpe554WKDfHQ',
-    counterpartyHandle: '$bsv_otc',
-    arbitratorAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'Tradex Multi-Sig Bridge',
-    depositAsset: 'ETH',
-    depositAmount: 15.0,
-    depositNetwork: 'Ethereum Mainnet',
-    depositAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    depositTxId: '0x5582301928371928301928301928301928301928',
-    isPartyAFunded: true,
-    targetAsset: 'BSV',
-    targetAmount: 820.0,
-    targetNetwork: 'Bitcoin SV Mainnet',
-    targetAddress: '1P5ZEDWTKTFGxQjZphgWPQUpe554WKDfHQ',
-    targetTxId: '0x6682301928371928301928301928301928301928',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 3600000 * 48,
-    expiresAt: Date.now() - 3600000 * 24,
-    inspectionHours: 24,
-    timelockBlocks: 144,
-    scriptType: 'Cross-Chain Atomic Hash Lock',
-    scriptAsm: 'OP_IF OP_SHA256 ... OP_EQUALVERIFY OP_CHECKLOCKTIMEVERIFY 144 OP_DROP OP_2 ... 2 OP_CHECKMULTISIG',
-    scriptHash: '0x8812301928371928301928301928301928301928',
-    escrowContractAddress: VERIFIED_ESCROW_CONTRACT_ADDRESS,
-    settlementTxId: '0x9e248b11c8d482910fa8c829e17b819f20102bca819f72b10293847591028377b1',
-    feeSats: 280,
-    securityCollateralUsd: 39750,
-    terms: 'Settlement confirmed. Pre-image revealed and funds released on both chains.'
-  }
-];
+// Initial escrow contracts across categories (authentic user created contracts only)
+const INITIAL_ESCROW_CONTRACTS: EscrowContract[] = [];
 
 export const apiService = DexApiService.getInstance();
 

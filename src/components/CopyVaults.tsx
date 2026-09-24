@@ -100,9 +100,14 @@ export const CopyVaults: React.FC = () => {
 
       {/* Vault Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {vaults.map((vault) => (
-          <div
-            key={vault.id}
+        {vaults.length === 0 ? (
+          <div className="lg:col-span-3 p-12 text-center text-xs text-[#666] rounded-sm bg-[#0A0A0A] border border-[#222]">
+            No strategy vaults currently active. Check back shortly or deploy your own strategy in the Strategy Studio.
+          </div>
+        ) : (
+          vaults.map((vault) => (
+            <div
+              key={vault.id}
             className={`rounded-sm bg-[#0A0A0A] border transition-all flex flex-col justify-between p-6 ${
               vault.isUserSubscribed
                 ? 'border-[#00FF41] shadow-[0_0_20px_rgba(0,255,65,0.15)]'
@@ -220,7 +225,7 @@ export const CopyVaults: React.FC = () => {
               )}
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* DEPOSIT MODAL */}

@@ -75,7 +75,7 @@ export const WalletModal: React.FC = () => {
   // Submodal views
   const [view, setView] = useState<'main' | 'evm_sub' | 'bsv_sub' | 'handcash_input' | 'seed_input' | 'passkey_loading' | 'qr_scan' | 'missing_ext' | 'networks_sub' | 'reown_universal'>('main');
   const [missingWalletInfo, setMissingWalletInfo] = useState<{ name: string; icon: string; installUrl: string; desc: string } | null>(null);
-  const [handcashHandle, setHandcashHandle] = useState('$orah_trader');
+  const [handcashHandle, setHandcashHandle] = useState('');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [searchEvm, setSearchEvm] = useState('');
   const [activeWalletAction, setActiveWalletAction] = useState<string | null>(null);

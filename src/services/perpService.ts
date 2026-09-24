@@ -237,8 +237,8 @@ export const INITIAL_COPY_VAULTS: CopyVault[] = [
     minDepositUsd: 50,
     managementFeePercent: 1.0,
     performanceFeePercent: 10.0,
-    isUserSubscribed: true,
-    userInvestedUsd: 500,
+    isUserSubscribed: false,
+    userInvestedUsd: 0,
     chartData: [
       { day: 'Day 1', roi: 0 },
       { day: 'Day 5', roi: 8.2 },

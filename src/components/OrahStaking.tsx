@@ -52,8 +52,8 @@ const INITIAL_POOLS: StakingPool[] = [
     totalStakedUsd: 12450000,
     totalStakedTokens: 8412162,
     multiplier: '3.5x VIP Boost',
-    userStaked: 1500,
-    pendingRewards: 114.28,
+    userStaked: 0,
+    pendingRewards: 0,
     rewardToken: 'ORAH + USDC',
     isPopular: true
   },
@@ -100,8 +100,8 @@ const INITIAL_POOLS: StakingPool[] = [
     totalStakedUsd: 4820000,
     totalStakedTokens: 979674,
     multiplier: '2.5x Compute Boost',
-    userStaked: 250,
-    pendingRewards: 42.10,
+    userStaked: 0,
+    pendingRewards: 0,
     rewardToken: 'AURA + Trading Rebates',
     isPopular: true
   }
@@ -112,14 +112,21 @@ interface OrahStakingProps {
 }
 
 export const OrahStaking: React.FC<OrahStakingProps> = ({ onGoToSwap }) => {
-  const { isConnected, openWalletModal } = useWallet();
+  const { isConnected, openWalletModal, getTokenBalance, updateTokenBalance } = useWallet();
 
-  const [pools, setPools] = useState<StakingPool[]>(INITIAL_POOLS);
+  const [pools, setPools] = useState<StakingPool[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradex_staking_pools_v2');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_POOLS;
+  });
   const [selectedPool, setSelectedPool] = useState<StakingPool | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('500');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [actionType, setActionType] = useState<'stake' | 'unstake'>('stake');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [stakeError, setStakeError] = useState<string | null>(null);
 
   // Aggregate user stats
   const totalUserStakedUsd = pools.reduce((acc, p) => acc + (p.userStaked * (p.token === 'ORAH' ? 1.48 : 4.92)), 0);
@@ -128,12 +135,15 @@ export const OrahStaking: React.FC<OrahStakingProps> = ({ onGoToSwap }) => {
   const handleOpenModal = (pool: StakingPool, type: 'stake' | 'unstake') => {
     setSelectedPool(pool);
     setActionType(type);
-    setStakeAmount(type === 'stake' ? '250' : pool.userStaked.toString());
+    setStakeError(null);
+    const userBal = getTokenBalance ? getTokenBalance(pool.token) : 0;
+    setStakeAmount(type === 'stake' ? (userBal > 0 ? Math.min(250, userBal).toString() : '50') : pool.userStaked.toString());
     setIsModalOpen(true);
   };
 
   const handleConfirmAction = (e: React.FormEvent) => {
     e.preventDefault();
+    setStakeError(null);
     if (!isConnected) {
       openWalletModal();
       return;
@@ -141,21 +151,52 @@ export const OrahStaking: React.FC<OrahStakingProps> = ({ onGoToSwap }) => {
     if (!selectedPool) return;
 
     const amt = parseFloat(stakeAmount) || 0;
-    if (amt <= 0) return;
+    if (amt <= 0) {
+      setStakeError('Please enter a valid amount greater than 0.');
+      return;
+    }
+
+    if (actionType === 'stake') {
+      const currentBal = getTokenBalance ? getTokenBalance(selectedPool.token) : 0;
+      if (amt > currentBal) {
+        setStakeError(`Insufficient ${selectedPool.token} balance. You currently have ${currentBal.toLocaleString()} ${selectedPool.token}.`);
+        return;
+      }
+    } else if (actionType === 'unstake') {
+      if (amt > selectedPool.userStaked) {
+        setStakeError(`Cannot unstake more than currently staked balance (${selectedPool.userStaked.toLocaleString()} ${selectedPool.token}).`);
+        return;
+      }
+    }
 
     setIsProcessing(true);
     setTimeout(() => {
-      setPools(prev => prev.map(p => {
-        if (p.id === selectedPool.id) {
-          const newStaked = actionType === 'stake' ? p.userStaked + amt : Math.max(0, p.userStaked - amt);
-          return {
-            ...p,
-            userStaked: newStaked,
-            totalStakedTokens: actionType === 'stake' ? p.totalStakedTokens + amt : p.totalStakedTokens - amt
-          };
+      // Deduct or credit wallet balance
+      if (updateTokenBalance) {
+        if (actionType === 'stake') {
+          updateTokenBalance(selectedPool.token, -amt);
+        } else {
+          updateTokenBalance(selectedPool.token, amt);
         }
-        return p;
-      }));
+      }
+
+      setPools(prev => {
+        const next = prev.map(p => {
+          if (p.id === selectedPool.id) {
+            const newStaked = actionType === 'stake' ? p.userStaked + amt : Math.max(0, p.userStaked - amt);
+            return {
+              ...p,
+              userStaked: newStaked,
+              totalStakedTokens: actionType === 'stake' ? p.totalStakedTokens + amt : p.totalStakedTokens - amt
+            };
+          }
+          return p;
+        });
+        try {
+          localStorage.setItem('tradex_staking_pools_v2', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
 
       setIsProcessing(false);
       setIsModalOpen(false);
@@ -174,9 +215,22 @@ export const OrahStaking: React.FC<OrahStakingProps> = ({ onGoToSwap }) => {
       return;
     }
 
+    const totalRewards = pools.reduce((acc, p) => acc + p.pendingRewards, 0);
+    if (totalRewards <= 0) return;
+
     setIsProcessing(true);
     setTimeout(() => {
-      setPools(prev => prev.map(p => ({ ...p, pendingRewards: 0 })));
+      if (updateTokenBalance && totalRewards > 0) {
+        updateTokenBalance('ORAH', totalRewards);
+      }
+
+      setPools(prev => {
+        const next = prev.map(p => ({ ...p, pendingRewards: 0 }));
+        try {
+          localStorage.setItem('tradex_staking_pools_v2', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       setIsProcessing(false);
 
       confetti({
@@ -397,9 +451,19 @@ export const OrahStaking: React.FC<OrahStakingProps> = ({ onGoToSwap }) => {
                 </div>
                 <div className="flex justify-between">
                   <span>Your Current Stake:</span>
-                  <span className="text-white font-bold">{selectedPool.userStaked} {selectedPool.token}</span>
+                  <span className="text-white font-bold">{selectedPool.userStaked.toLocaleString()} {selectedPool.token}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Wallet Available:</span>
+                  <span className="text-[#00FF41] font-bold">{(getTokenBalance ? getTokenBalance(selectedPool.token) : 0).toLocaleString()} {selectedPool.token}</span>
                 </div>
               </div>
+
+              {stakeError && (
+                <div className="p-2.5 rounded-sm bg-red-950/40 border border-red-500/40 text-red-400 text-[11px] leading-relaxed">
+                  {stakeError}
+                </div>
+              )}
 
               <div>
                 <label className="block text-[#777] uppercase text-[10px] font-bold mb-1">

@@ -15,201 +15,10 @@ export interface SmartContractMethodCall {
   resultMessage: string;
 }
 
-const STORAGE_ESCROW_CONTRACTS = 'tradex_escrow_contracts_v2';
+const STORAGE_ESCROW_CONTRACTS = 'tradex_escrow_contracts_v3';
 
-// Initial high-profile escrow contracts demonstrating cross-asset, milestone, timelocked, and multi-sig oracle deals
-const INITIAL_ESCROW_CONTRACTS: EscrowContract[] = [
-  {
-    id: 'escrow-bsv-whale-902',
-    title: 'Whale Block OTC: 100,000 USDT ⇄ 2,050 BSV',
-    type: 'CROSS_ASSET_ATOMIC',
-    status: 'DUAL_FUNDED',
-    creatorAddress: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
-    creatorHandle: '$otc_whale',
-    counterpartyAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    counterpartyHandle: '$satoshi_prime',
-    depositAsset: 'USDT',
-    depositAmount: 100000,
-    depositNetwork: 'Ethereum (ERC-20)',
-    depositAddress: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-    depositTxId: '0x7e59b2ec4b80b7e289f33c3064c519bfdffdb2368ec2b64d1f56b3e9a7e6717a',
-    isPartyAFunded: true,
-    targetAsset: 'BSV',
-    targetAmount: 2050,
-    targetNetwork: 'Bitcoin SV',
-    targetAddress: '1Hw5L7Ksm8vTq4vY2hK3xW6vYpX8sQ9aB1',
-    targetTxId: '3f7c46928c19a34d20b88ca295c6728f0481e3597bc4d8000000006b48304502',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 1000 * 60 * 45, // 45m ago
-    expiresAt: Date.now() + 1000 * 60 * 60 * 24, // 24h
-    inspectionHours: 4,
-    timelockBlocks: 144,
-    scriptType: 'Cross-Chain Atomic Hash Lock',
-    scriptAsm: 'OP_SHA256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 OP_EQUALVERIFY OP_2 0287a9bc24519f8e4c7b6a1234567890abcdef1234567890abcdef1234567890ab 03bc194a7e3f81e8f237b6058097b69c4c82b0e87d8a9e71cb4655022067d268d0 OP_2 OP_CHECKMULTISIG',
-    scriptHash: '7a9c8f3b1e2a4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
-    escrowContractAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 750,
-    securityCollateralUsd: 5000,
-    terms: 'Atomic swap between Tether USDT and Bitcoin SV via Escrow Smart Contract 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2. Mutual release requires secret hash preimage and 2-of-2 multisig witness signatures.'
-  },
-  {
-    id: 'escrow-a8-gaming-771',
-    title: 'Ancient8 Gaming DAO: 250,000 A8 ⇄ 15.5 ETH Block Deal',
-    type: 'CROSS_ASSET_ATOMIC',
-    status: 'PARTY_A_FUNDED',
-    creatorAddress: '0x388C818CA8B9251b393131C08a73683246A73132',
-    creatorHandle: '$ancient8_treasury',
-    counterpartyAddress: '0xfe9e8709d3215310075d67e3ed32a380ccf451c8',
-    counterpartyHandle: '$gamefi_ventures',
-    depositAsset: 'A8',
-    depositAmount: 250000,
-    depositNetwork: 'Ancient8 L2 / Ronin Katana',
-    depositAddress: '0x388C818CA8B9251b393131C08a73683246A73132',
-    depositTxId: '0x991823ab817ef819230914871239871029381029381029381029381029381029',
-    isPartyAFunded: true,
-    targetAsset: 'ETH',
-    targetAmount: 15.5,
-    targetNetwork: 'Ethereum Mainnet',
-    targetAddress: '0xfe9e8709d3215310075d67e3ed32a380ccf451c8',
-    isPartyBFunded: false,
-    createdAt: Date.now() - 1000 * 60 * 120, // 2h ago
-    expiresAt: Date.now() + 1000 * 60 * 60 * 48, // 48h
-    inspectionHours: 12,
-    timelockBlocks: 288,
-    scriptType: '2-of-2 Multi-Sig',
-    scriptAsm: 'OP_2 02388c818ca8b9251b393131c08a73683246a731320182736152435416273849 03fe9e8709d3215310075d67e3ed32a380ccf451c8102938475610293847561029 OP_2 OP_CHECKMULTISIG',
-    scriptHash: '4f8b9a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a',
-    escrowContractAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 920,
-    securityCollateralUsd: 12000,
-    terms: 'OTC token acquisition of A8 (Ancient8 Gaming ecosystem) locked in Smart Contract 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2 in exchange for Ethereum. Counterparty must fund 15.5 ETH before timelock expiry.'
-  },
-  {
-    id: 'escrow-lmwr-depin-401',
-    title: 'LimeWire AI Node Compute Reserve: 85,000 LMWR ⇄ 42.0 SOL',
-    type: 'TIMELOCKED_SAFEGUARD',
-    status: 'DUAL_FUNDED',
-    creatorAddress: '1P92kL4pQ8vRy1sW5aX6vYpX2bC8dE3fJ5',
-    creatorHandle: '$limewire_ai_node',
-    counterpartyAddress: 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK',
-    counterpartyHandle: '$solana_compute_dao',
-    depositAsset: 'LMWR',
-    depositAmount: 85000,
-    depositNetwork: 'Ethereum (ERC-20)',
-    depositAddress: '0x1111111254fb6c44bac0bed2854e76f90643097d',
-    depositTxId: '0x32187645abefcd98716253412389716253412389716253412389716253412389',
-    isPartyAFunded: true,
-    targetAsset: 'SOL',
-    targetAmount: 42.0,
-    targetNetwork: 'Solana High-Throughput',
-    targetAddress: 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK',
-    targetTxId: '5k89123897162534123897162534123897162534123897162534123897162534',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 1000 * 60 * 30, // 30m ago
-    expiresAt: Date.now() + 1000 * 60 * 60 * 12, // 12h
-    inspectionHours: 2,
-    timelockBlocks: 72,
-    scriptType: 'CLTV Timelock Escrow',
-    scriptAsm: 'OP_IF 890480 OP_CHECKLOCKTIMEVERIFY OP_DROP 021111111254fb6c44bac0bed2854e76f90643097d018273645102938475610293 OP_CHECKSIG OP_ELSE OP_2 021111111254fb6c44bac0bed2854e76f90643097d018273645102938475610293 03dyw8jctfwhnrjhhmfcbxvvdtqwmevfbx6zkumg5cnskk019283746501928374 OP_2 OP_CHECKMULTISIG OP_ENDIF',
-    scriptHash: '8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d',
-    escrowContractAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 620,
-    securityCollateralUsd: 3500,
-    terms: 'Escrow for LMWR token reservation locked via Smart Contract 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2. Automatically refundable if Solana compute proof is not verified within 12 hours.'
-  },
-  {
-    id: 'escrow-milestone-core-553',
-    title: 'Multi-Tranche Protocol Development: 35,000 USDT (3 Milestones)',
-    type: 'MILESTONE_TRANCHE',
-    status: 'IN_INSPECTION',
-    creatorAddress: '1K28xL9pQ3vRy7sW1aX8vYpX4bC9dE5fG3',
-    creatorHandle: '$bsv_grant_dao',
-    counterpartyAddress: '1B45kM8pQ2vRy6sW9aX3vYpX7bC1dE8fH4',
-    counterpartyHandle: '$senior_rust_core',
-    arbitratorAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    arbitratorName: 'Tradex Decentralized Escrow Arbiter',
-    depositAsset: 'USDT',
-    depositAmount: 35000,
-    depositNetwork: 'Ethereum (ERC-20)',
-    depositAddress: '0x28C6c06298d514Db089934071355E5743bf21d60',
-    depositTxId: '0x888877776666555544443333222211110000ffffaaaabbbbccccddddeeeeffff',
-    isPartyAFunded: true,
-    targetAsset: 'USDT',
-    targetAmount: 35000,
-    targetNetwork: 'Ethereum (ERC-20)',
-    targetAddress: '0x1B45kM8pQ2vRy6sW9aX3vYpX7bC1dE8fH4',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 1000 * 60 * 60 * 36, // 36h ago
-    expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 14, // 14 days
-    inspectionHours: 24,
-    timelockBlocks: 2016,
-    milestones: [
-      {
-        id: 'm1',
-        title: 'Phase 1: Zero-Knowledge Mempool Relayer Module',
-        percentage: 30,
-        amount: 10500,
-        status: 'RELEASED',
-        txid: '0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff'
-      },
-      {
-        id: 'm2',
-        title: 'Phase 2: SPV Client Merkle Root Proof Engine',
-        percentage: 40,
-        amount: 14000,
-        status: 'APPROVED'
-      },
-      {
-        id: 'm3',
-        title: 'Phase 3: Stress Testing & Mainnet Audit Deliverables',
-        percentage: 30,
-        amount: 10500,
-        status: 'PENDING'
-      }
-    ],
-    scriptType: '2-of-3 Oracle Multi-Sig',
-    scriptAsm: 'OP_2 0287a9bc24519f8e4c7b6a1234567890abcdef1234567890abcdef1234567890ab 03bc194a7e3f81e8f237b6058097b69c4c82b0e87d8a9e71cb4655022067d268d0 02tradexaiarbitratorpubkey1827364501928374650192837465019283746501 OP_3 OP_CHECKMULTISIG',
-    scriptHash: '9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b',
-    escrowContractAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    feeSats: 1150,
-    securityCollateralUsd: 7000,
-    terms: 'Funds locked in Escrow Contract 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2. Party A releases each milestone tranche upon verification of open-source git pull requests. Tradex AI oracle available in dispute.'
-  },
-  {
-    id: 'escrow-multisig-settled-108',
-    title: 'Cross-Border Institutional Swap: 50,000 USDC ⇄ 1,025 BSV',
-    type: 'CROSS_ASSET_ATOMIC',
-    status: 'SETTLED',
-    creatorAddress: '1A98kLmNp4q8ZkP1vRy3sW7aX2vYpX9bC2',
-    creatorHandle: '$geneva_capital',
-    counterpartyAddress: '1P92kL4pQ8vRy1sW5aX6vYpX2bC8dE3fJ5',
-    counterpartyHandle: '$london_otc_desk',
-    depositAsset: 'USDC',
-    depositAmount: 50000,
-    depositNetwork: 'Solana (SPL)',
-    depositAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    depositTxId: '4k89172635418273645019283746501928374650192837465019283746501928',
-    isPartyAFunded: true,
-    targetAsset: 'BSV',
-    targetAmount: 1025,
-    targetNetwork: 'Bitcoin SV',
-    targetAddress: '1P92kL4pQ8vRy1sW5aX6vYpX2bC8dE3fJ5',
-    targetTxId: '8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e',
-    isPartyBFunded: true,
-    createdAt: Date.now() - 1000 * 60 * 60 * 18,
-    expiresAt: Date.now() + 1000 * 60 * 60 * 6,
-    inspectionHours: 2,
-    timelockBlocks: 72,
-    scriptType: '2-of-2 Multi-Sig',
-    scriptAsm: 'OP_2 021a98klmnp4q8zkp1vry3sw7ax2vypx9bc2019283746501928374650192837465 031p92kl4pq8vry1sw5ax6vypx2bc8de3fj5019283746501928374650192837465 OP_2 OP_CHECKMULTISIG',
-    scriptHash: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
-    escrowContractAddress: TRADEX_ESCROW_CONTRACT_ADDRESS,
-    settlementTxId: 'b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8',
-    feeSats: 580,
-    securityCollateralUsd: 5000,
-    terms: 'Settled OTC trade executed with 2-of-2 multisig script release via contract 0x4deb6023abD9E1C640aDa35201be8ff591d21cF2. Total execution latency 1.4 minutes on BSV ledger.'
-  }
-];
+// Only authentic user-created and on-chain verified escrow contracts
+const INITIAL_ESCROW_CONTRACTS: EscrowContract[] = [];
 
 class EscrowTradingService {
   private contracts: EscrowContract[] = [];
@@ -221,15 +30,31 @@ class EscrowTradingService {
 
   private loadContracts() {
     try {
+      // Purge old demo storage keys if present
+      localStorage.removeItem('tradex_escrow_contracts_v2');
+      localStorage.removeItem('bsv_dex_escrow_contracts_v2');
+
       const saved = localStorage.getItem(STORAGE_ESCROW_CONTRACTS);
       if (saved) {
-        this.contracts = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out any legacy demo contracts
+          this.contracts = parsed.filter(c => 
+            c && c.id && 
+            !c.id.includes('whale-902') && 
+            !c.id.includes('gaming-771') && 
+            !c.id.includes('depin-401') && 
+            !c.id.includes('core-553') && 
+            !c.id.includes('settled-108')
+          );
+        } else {
+          this.contracts = [];
+        }
       } else {
-        this.contracts = [...INITIAL_ESCROW_CONTRACTS];
-        this.saveContracts();
+        this.contracts = [];
       }
     } catch {
-      this.contracts = [...INITIAL_ESCROW_CONTRACTS];
+      this.contracts = [];
     }
   }
 
