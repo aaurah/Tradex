@@ -245,13 +245,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     return () => {
-      if (typeof unsubscribeReown === 'function') {
-        try {
-          unsubscribeReown();
-        } catch {
-          // ignore
-        }
-      }
       try {
         (window as any).ethereum?.removeListener?.('accountsChanged', handleAccountsChanged);
         (window as any).ethereum?.removeListener?.('chainChanged', handleChainChanged);

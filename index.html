@@ -39,13 +39,29 @@
         };
 
         // Safe Storage Shim: in sandboxed iframes or private browsing, localStorage can throw SecurityError
-        try {
-          var testKey = '__tradex_storage_test__';
-          window.localStorage.setItem(testKey, '1');
-          window.localStorage.removeItem(testKey);
-        } catch (e) {
-          console.warn('[Tradex] Storage restricted in this sandbox/iframe, activating memory fallback:', e);
+        (function() {
           var memStore = {};
+          try {
+            if (typeof Storage !== 'undefined' && Storage.prototype) {
+              var origGet = Storage.prototype.getItem;
+              var origSet = Storage.prototype.setItem;
+              var origRemove = Storage.prototype.removeItem;
+              var origClear = Storage.prototype.clear;
+              Storage.prototype.getItem = function(k) {
+                try { return origGet.apply(this, arguments); } catch (e) { return Object.prototype.hasOwnProperty.call(memStore, k) ? memStore[k] : null; }
+              };
+              Storage.prototype.setItem = function(k, v) {
+                try { origSet.apply(this, arguments); } catch (e) { memStore[k] = String(v); }
+              };
+              Storage.prototype.removeItem = function(k) {
+                try { origRemove.apply(this, arguments); } catch (e) { delete memStore[k]; }
+              };
+              Storage.prototype.clear = function() {
+                try { origClear.apply(this, arguments); } catch (e) { memStore = {}; }
+              };
+            }
+          } catch (e) {}
+
           var dummyStorage = {
             getItem: function(k) { return Object.prototype.hasOwnProperty.call(memStore, k) ? memStore[k] : null; },
             setItem: function(k, v) { memStore[k] = String(v); },
@@ -54,16 +70,24 @@
             key: function(i) { return Object.keys(memStore)[i] || null; },
             get length() { return Object.keys(memStore).length; }
           };
+
           try {
-            Object.defineProperty(window, 'localStorage', { value: dummyStorage, configurable: true, writable: true });
-            Object.defineProperty(window, 'sessionStorage', { value: dummyStorage, configurable: true, writable: true });
-          } catch (e2) {
+            var testKey = '__tradex_storage_test__';
+            window.localStorage.setItem(testKey, '1');
+            window.localStorage.removeItem(testKey);
+          } catch (e) {
+            console.warn('[Tradex] Storage access restricted in this sandbox, fallback active:', e);
             try {
-              window.localStorage = dummyStorage;
-              window.sessionStorage = dummyStorage;
-            } catch (e3) {}
+              Object.defineProperty(window, 'localStorage', { value: dummyStorage, configurable: true, writable: true });
+              Object.defineProperty(window, 'sessionStorage', { value: dummyStorage, configurable: true, writable: true });
+            } catch (e2) {
+              try {
+                window.localStorage = dummyStorage;
+                window.sessionStorage = dummyStorage;
+              } catch (e3) {}
+            }
           }
-        }
+        })();
 
         // Safe window.open wrapper for sandboxed iframes
         var origOpen = window.open;
